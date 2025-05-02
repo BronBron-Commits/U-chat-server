@@ -36,7 +36,34 @@ def record_until_silence(sample_rate=48000, frame_duration_ms=30, max_record_sec
     ring_buffer = collections.deque(maxlen=num_padding_frames)
     recording = []
     triggered = False
-    stream = sd.InputStream(samplerate=sample_rate, channels=1, dtype="int16", blocksize=frame_size)
+
+    # List available input devices
+    def list_input_devices():
+        print("Available input devices:")
+        devices = sd.query_devices()
+        input_devices = []
+        for idx, device in enumerate(devices):
+            if device['max_input_channels'] > 0:
+                print(f"{idx}: {device['name']}")
+                input_devices.append(device)
+
+        while True:
+            try:
+                device_number = int(input(f"Select the microphone device number from the list above: "))
+                if 0 <= device_number < len(input_devices):
+                    selected_device = input_devices[device_number]
+                    print(f"Selected device: {selected_device['name']}")
+                    return device_number
+                else:
+                    print(f"Invalid selection. Please select a valid device number.")
+            except ValueError:
+                print("Invalid input. Please enter a valid device number.")
+
+    # Get user input for device selection
+    selected_device = list_input_devices()
+
+    # Open the stream with the selected device
+    stream = sd.InputStream(samplerate=sample_rate, channels=1, dtype="int16", blocksize=frame_size, device=selected_device)
 
     # Setup plot for audio level feedback
     plt.ion()  # Turn interactive mode on
