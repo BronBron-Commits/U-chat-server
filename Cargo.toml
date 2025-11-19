@@ -1,29 +1,25 @@
-resolver = "2"
-
-
-
 [workspace]
 members = [
     "auth-api",
-    "chat-service",
-    "gateway-service",
-    "presence-service",
-    "proto",
-    "net",
-    "history-service",
     "auth-service",
+    "bot",
     "bot-service",
-    "event-hub-service",
-    "server",
+    "chat-service",
     "client",
     "core",
+    "event-hub-service",
+    "gateway-service",
+    "history-service",
+    "net",
+    "presence-service",
+    "proto",
+    "server",
     "storage",
-    "unhidra-snapshots",
-    "unhidra-snapshot-gui"
 ]
+
+# Prevent GUI tools from being built as part of workspace
 exclude = [
-    "unhidra-vcs-gui"
+    "unhidra-snapshot-gui",
+    "unhidra-snapshots",
+    "unhidra-vcs-gui",
 ]
-
-resolver = "2"
-
