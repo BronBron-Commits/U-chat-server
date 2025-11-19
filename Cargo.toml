@@ -17,9 +17,10 @@ members = [
     "storage",
 ]
 
-# Prevent GUI tools from being built as part of workspace
 exclude = [
     "unhidra-snapshot-gui",
     "unhidra-snapshots",
     "unhidra-vcs-gui",
 ]
+
+resolver = "3"
