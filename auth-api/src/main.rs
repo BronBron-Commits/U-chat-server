@@ -1,6 +1,10 @@
-use axum::{Router, routing::{post, get}, Json};
+use axum::{
+    Router,
+    routing::{post, get},
+    Json,
+};
 use serde_json::json;
-use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 async fn login_handler() -> &'static str {
     "login endpoint"
@@ -18,9 +22,9 @@ async fn main() {
         .route("/login", post(login_handler))
         .route("/health", get(health_handler));
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 9200));
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    // Axum 0.7 style listener + serve
+    let listener = TcpListener::bind("0.0.0.0:9200").await.unwrap();
+    axum::serve(listener, app)
         .await
         .unwrap();
 }
