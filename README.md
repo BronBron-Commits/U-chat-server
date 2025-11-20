@@ -1,90 +1,76 @@
-# Unhidra – Distributed Messaging System
+# U-Chat  
+A lightweight, modular chat stack written in Rust.  
+Focused on clarity, correctness, and small, composable microservices.
 
-Unhidra is a multi-service Rust messaging platform composed of:
+## Overview  
+U-Chat consists of six independent Rust services that communicate over WebSockets and HTTP.
 
-• gateway-service – WebSocket entrypoint  
-• auth-api – authentication and token issuance  
-• chat-service – message routing  
-• presence-service – online/offline tracking  
-• history-service – message history retrieval  
-• event-hub-service – internal pub/sub bridge  
-• client – CLI test client  
-• startup-check – health diagnostics tool  
+1. auth-api  
+   Issues HS256 JWT tokens for login.  
+2. gateway-service  
+   Validates JWTs and manages all WebSocket connections.  
+3. chat-service  
+   Handles broadcast and direct messaging logic.  
+4. presence-service  
+   Tracks online and offline state.  
+5. history-service  
+   Stores and retrieves message history.  
+6. bot-service  
+   Internal automation and system events.
 
-==================================================
-CURRENT STATUS (v0.1.3)
-==================================================
+A Rust CLI client is provided as an example of using the gateway and auth endpoints.
 
-GATEWAY SERVICE
-• Running on: ws://127.0.0.1:9000/ws  
-• WebSocket echo verified  
-• Real broadcast messaging now functional  
-• Utf8Bytes compatibility implemented  
-• Stream forwarding and session isolation confirmed  
+## Features  
+• JWT authentication using HS256  
+• Central WebSocket gateway  
+• Fully asynchronous services built on tokio  
+• Broadcast system based on tokio::sync::broadcast  
+• Modular services that can run together or independently  
+• Verified working on desktop Linux and Termux on Android
 
-AUTH API
-• Running on http://127.0.0.1:9200  
-• Login route (POST) active  
-• Health check validated through client  
-• DB opens cleanly at /opt/unhidra/auth.db  
+## Building  
+Clone the repository:
 
-CLIENT
-• Performs Auth API health test  
-• Connects to Gateway WebSocket  
-• Confirms message path availability  
-• Ready for next step: auth tokens and identity  
+\`\`\`
+git clone git@github.com:BronBron-Commits/U-chat.git
+cd U-chat
+\`\`\`
 
-STARTUP CHECK
-• Validates all ports:  
-  9000 gateway  
-  9200 auth  
-  9300 chat  
-  9400 presence  
-  9500 history  
-• Confirms DOWN/UP globally before boot  
+Build everything:
 
-==================================================
-RECENT UPDATES (v0.1.3)
-==================================================
+\`\`\`
+cargo build --release
+\`\`\`
 
-SERVICE BOOT
-• All services now successfully run together under tmux  
-• startup-check confirms service ports before launch  
-• Event-hub fixes ensure forwarding doesn’t panic  
+## Running the stack  
+Use the included run-all.sh script.
 
-WEBSOCKET FUNCTIONALITY
-• Gateway now fully processes text messages  
-• Transmission uses correct UTF-8 type conversions  
-• Verified with websocat and our real client  
+\`\`\`
+chmod +x run-all.sh
+./run-all.sh
+\`\`\`
 
-CLIENT IMPROVEMENT
-• Now prints both Auth API status and WS connectivity  
-• Gateway connection path validated  
-• Prepped for token-based login  
+This launches all microservices in the background and writes logs to the logs/ directory.
 
-DOCUMENTATION
-• README rewritten and expanded  
-• Added versioned changelog sections  
-• GitHub repo updated with clean history  
+## Example client  
+Build:
 
-==================================================
-INSTALLATION & BUILD
-==================================================
+\`\`\`
+cargo build --release --bin client
+\`\`\`
 
-Clone and build:
+Run:
 
-git clone git@github.com:BronBron-Commits/Unhidra.git
-cd Unhidra
-cargo build --workspace --release
+\`\`\`
+./target/release/client
+\`\`\`
 
-==================================================
-NEXT STEPS
-==================================================
+The client performs a login request, receives a JWT, and connects to the WebSocket gateway.
 
-• Implement authenticated WebSocket sessions  
-• Introduce message envelopes using JWTs  
-• Create a real-time chat client UI (web + native)  
-• Expand presence-service for idle/active/typing  
-• Add Windows & Android builds  
-• Federation protocol design for multi-node networks  
+## Project status  
+The current version (v0.1.3) represents the first fully verified end-to-end chat flow, including stable authentication and WebSocket communication.
 
+Future work includes message persistence, channel support, user accounts, and a full GUI client.
+
+## License  
+MIT License
