@@ -3,7 +3,7 @@ use axum::{
         ws::{Message, WebSocket},
         Query, State, WebSocketUpgrade,
     },
-    response::{IntoResponse, Html},
+    response::Html,
     routing::get,
     Router,
 };
@@ -25,34 +25,28 @@ struct WsQuery {
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    Query(query): Query<WsQuery>,
+    Query(q): Query<WsQuery>,
     State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+) -> Result<impl axum::response::IntoResponse, Html<&'static str>> {
     let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "supersecret".into());
 
-    if decode::<serde_json::Value>(
-        &query.token,
+    let verify = decode::<serde_json::Value>(
+        &q.token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &Validation::default(),
-    )
-    .is_err()
-    {
-        return Html("INVALID TOKEN");
+    );
+
+    if verify.is_err() {
+        return Err(Html("INVALID TOKEN"));
     }
 
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state)))
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.tx.subscribe();
     let tx = state.tx.clone();
-
-    let recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(text))) = receiver.next().await {
-            let _ = tx.send(text);
-        }
-    });
 
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
@@ -62,12 +56,18 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
         }
     });
 
-    let _ = tokio::join!(recv_task, send_task);
+    let recv_task = tokio::spawn(async move {
+        while let Some(Ok(Message::Text(text))) = receiver.next().await {
+            let _ = tx.send(text);
+        }
+    });
+
+    let _ = tokio::join!(send_task, recv_task);
 }
 
 #[tokio::main]
 async fn main() {
-    let (tx, _) = broadcast::channel::<String>(100);
+    let (tx, _) = broadcast::channel(100);
     let state = Arc::new(AppState { tx });
 
     let app = Router::new()
@@ -78,9 +78,9 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9000")
         .await
-        .expect("Failed to bind port 9000");
+        .expect("Failed to bind port");
 
     axum::serve(listener, app)
         .await
-        .expect("Failed to start server");
+        .expect("Server crashed");
 }
