@@ -26,48 +26,58 @@ struct WsQuery {
 #[tokio::main]
 async fn main() {
     let (tx, _) = broadcast::channel::<String>(100);
-    let app_state = Arc::new(AppState { tx });
+    let state = Arc::new(AppState { tx });
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
-        .with_state(app_state);
+        .with_state(state);
 
     println!("Gateway running on 0.0.0.0:9000");
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:9000")
-        .await
-        .expect("bind failed");
-    axum::serve(listener, app).await.expect("server failed");
+    axum::serve(
+        tokio::net::TcpListener::bind("0.0.0.0:9000")
+            .await
+            .unwrap(),
+        app,
+    )
+    .await
+    .unwrap();
 }
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
     Query(query): Query<WsQuery>,
-    State(app): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-
-    let valid = decode::<serde_json::Value>(
-        &query.token,
-        &DecodingKey::from_secret(b"secret"),
-        &Validation::default(),
-    )
-    .is_ok();
-
-    if !valid {
-        return axum::response::Html("INVALID TOKEN").into_response();
+    if !validate_token(&query.token) {
+        return axum::response::Html("INVALID TOKEN");
     }
 
-    ws.on_upgrade(move |socket| handle_socket(socket, app)).into_response()
+    ws.on_upgrade(move |socket| async move {
+        handle_socket(socket, state).await;
+    })
 }
 
-async fn handle_socket(socket: WebSocket, app: Arc<AppState>) {
+fn validate_token(token: &str) -> bool {
+    decode::<serde_json::Value>(
+        token,
+        &DecodingKey::from_secret("secret".as_ref()),
+        &Validation::default(),
+    )
+    .is_ok()
+}
+
+async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
+    let mut rx = state.tx.subscribe();
+    let tx = state.tx.clone();
+
     let (mut sender, mut receiver) = socket.split();
-    let mut rx = app.tx.subscribe();
-    let tx = app.tx.clone();
 
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            let _ = sender.send(Message::Text(msg)).await;
+            if sender.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
         }
     });
 
@@ -77,5 +87,8 @@ async fn handle_socket(socket: WebSocket, app: Arc<AppState>) {
         }
     });
 
-    let _ = tokio::join!(send_task, recv_task);
+    tokio::select! {
+        _ = send_task => {}
+        _ = recv_task => {}
+    }
 }
