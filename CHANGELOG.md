@@ -1,16 +1,17 @@
 # Changelog
 
-## [0.1.1] – Client Service Update  
+## [0.1.2] – Gateway WebSocket Update
 ### Added
-- Implemented new client-side health checks for core services.
-- Added HTTP test against Auth API at `http://127.0.0.1:9200`.
-- Added Gateway WebSocket reachability placeholder for `ws://127.0.0.1:9000/ws`.
+- Implemented working WebSocket broadcast pipeline in `gateway-service`.
+- Added `Utf8Bytes` handling for Axum 0.8 WebSocket compatibility.
+- Confirmed real client echo-test functionality over `ws://127.0.0.1:9000/ws`.
 
-### Improved
-- Output logs now clearly show which services are being tested.
-- Client boot process is cleaner and easier to read for developers.
+### Fixed
+- Resolved mismatched type errors between `String` and `Utf8Bytes`.
+- Corrected broadcast channel types to ensure inbound/outbound WS messages no longer panic.
 
 ### Notes
-- Auth API fully reachable (HTTP 200 OK)
-- Gateway reachable; WebSocket placeholder working
-- Preparing WebSocket auth and message protocol for next release
+- WebSocket gateway is now verified functional using `websocat`.
+- Event-hub integration will be added in the next iteration.
+- All core services compile and run cleanly under `tmux` session `unhidra-ms`.
+
