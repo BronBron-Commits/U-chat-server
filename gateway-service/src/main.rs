@@ -3,7 +3,7 @@ use axum::{
         ws::{Message, WebSocket},
         Query, State, WebSocketUpgrade,
     },
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::get,
     Router,
 };
@@ -45,48 +45,36 @@ async fn main() {
 }
 
 async fn ws_handler(
-    ws: WebSocketUpgrade,
     Query(query): Query<WsQuery>,
+    ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    // Validate JWT
-    let secret = std::env::var("JWT_SECRET").unwrap_or("secret".into());
+    let secret = std::env::var("JWT_SECRET").unwrap_or("supersecret".into());
+    let key = DecodingKey::from_secret(secret.as_bytes());
     let validation = Validation::default();
 
-    let token_ok = decode::<serde_json::Value>(
-        &query.token,
-        &DecodingKey::from_secret(secret.as_bytes()),
-        &validation,
-    )
-    .is_ok();
-
-    if !token_ok {
-        return "INVALID TOKEN".into_response();
+    if decode::<serde_json::Value>(&query.token, &key, &validation).is_err() {
+        return Html("INVALID TOKEN");
     }
 
-    // Good token → upgrade
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.tx.subscribe();
-    let tx = state.tx.clone();
-
-    let mut write = socket; // move socket into writer
-    let mut read = write.split(); // reader/writer split
-
-    let mut writer = read.0;
-    let mut reader = read.1;
+    let mut socket_send = socket.clone();
 
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
-            let _ = writer.send(Message::Text(msg)).await;
+            if socket_send.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
         }
     });
 
     let recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(text))) = reader.next().await {
-            let _ = tx.send(text);
+        while let Some(Ok(Message::Text(text))) = socket.recv().await {
+            let _ = state.tx.send(text);
         }
     });
 
