@@ -4,7 +4,7 @@ use axum::{
         Query, State, WebSocketUpgrade,
     },
     http::StatusCode,
-    response::Response,
+    response::{Response, IntoResponse},
     routing::get,
     Router,
 };
@@ -48,7 +48,6 @@ async fn ws_handler(
     Query(query): Query<WsQuery>,
 ) -> Response {
     let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "supersecret".into());
-
     let validation = Validation::default();
 
     let token_check = decode::<serde_json::Value>(
