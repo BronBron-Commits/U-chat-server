@@ -1,76 +1,65 @@
-# U-Chat  
-A lightweight, modular chat stack written in Rust.  
-Focused on clarity, correctness, and small, composable microservices.
+U-Chat
+Lightweight modular Rust chat stack built from small independent services.
 
-## Overview  
-U-Chat consists of six independent Rust services that communicate over WebSockets and HTTP.
+Architecture  
+    auth-api  
+        Issues HS256 JWT tokens
 
-1. auth-api  
-   Issues HS256 JWT tokens for login.  
-2. gateway-service  
-   Validates JWTs and manages all WebSocket connections.  
-3. chat-service  
-   Handles broadcast and direct messaging logic.  
-4. presence-service  
-   Tracks online and offline state.  
-5. history-service  
-   Stores and retrieves message history.  
-6. bot-service  
-   Internal automation and system events.
+    gateway-service  
+        Validates JWTs  
+        Manages all WebSocket connections
 
-A Rust CLI client is provided as an example of using the gateway and auth endpoints.
+    chat-service  
+        Handles broadcast messaging  
+        Handles direct messaging
 
-## Features  
-• JWT authentication using HS256  
-• Central WebSocket gateway  
-• Fully asynchronous services built on tokio  
-• Broadcast system based on tokio::sync::broadcast  
-• Modular services that can run together or independently  
-• Verified working on desktop Linux and Termux on Android
+    presence-service  
+        Tracks online users  
+        Tracks offline users
 
-## Building  
-Clone the repository:
+    history-service  
+        Stores message history  
+        Retrieves message history
 
-\`\`\`
-git clone git@github.com:BronBron-Commits/U-chat.git
-cd U-chat
-\`\`\`
+    bot-service  
+        Runs automated internal tasks  
+        Handles system-generated events
 
-Build everything:
+    client  
+        Demonstrates authentication flow  
+        Connects to gateway WebSocket
 
-\`\`\`
-cargo build --release
-\`\`\`
+Features  
+    HS256 authentication  
+    Central WebSocket gateway  
+    Asynchronous tokio runtime  
+    Broadcast system using tokio sync broadcast  
+    Services run independently or together  
+    Verified on Linux and Termux
 
-## Running the stack  
-Use the included run-all.sh script.
+Build  
+    git clone git@github.com:BronBron-Commits/U-chat.git  
+    cd U-chat  
+    cargo build --release
 
-\`\`\`
-chmod +x run-all.sh
-./run-all.sh
-\`\`\`
+Run  
+    chmod +x run-all.sh  
+    ./run-all.sh  
+        Starts all services in background  
+        Writes logs into the logs directory
 
-This launches all microservices in the background and writes logs to the logs/ directory.
+Client  
+    cargo build --release --bin client  
+    ./target/release/client  
+        Logs in  
+        Receives JWT  
+        Connects to gateway WebSocket
 
-## Example client  
-Build:
+Status  
+    v0.1.3  
+        First fully verified end-to-end flow  
+        Stable authentication  
+        Stable WebSocket messaging
 
-\`\`\`
-cargo build --release --bin client
-\`\`\`
-
-Run:
-
-\`\`\`
-./target/release/client
-\`\`\`
-
-The client performs a login request, receives a JWT, and connects to the WebSocket gateway.
-
-## Project status  
-The current version (v0.1.3) represents the first fully verified end-to-end chat flow, including stable authentication and WebSocket communication.
-
-Future work includes message persistence, channel support, user accounts, and a full GUI client.
-
-## License  
-MIT License
+License  
+    MIT
