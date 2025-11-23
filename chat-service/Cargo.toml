@@ -1,18 +1,54 @@
 [package]
 name = "chat-service"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Chat service with group chat and real-time messaging"
 
 [dependencies]
-axum = "0.7"
+# Async runtime
 tokio = { version = "1", features = ["full"] }
+
+# Web framework
+axum = { version = "0.8", features = ["macros", "ws"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# WebSocket
+futures-util = "0.3"
+tokio-tungstenite = "0.24"
+
+# Concurrent data structures
+dashmap = "6"
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tower-http = { version = "0.4", features = ["cors"] }
-rusqlite = { version = "0.31", features = ["bundled"] }
-chrono = "0.4"
-tungstenite = "0.28"
-tokio-tungstenite = "0.28"
 
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Unique identifiers
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Internal crates
 proto = { path = "../proto" }
-tower = { version = "0.5.2", features = ["util"] }
+core = { path = "../core" }
+jwt-common = { path = "../jwt-common" }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.10"
+
+[lints]
+workspace = true

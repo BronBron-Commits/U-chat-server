@@ -10,6 +10,75 @@
 | 2024-11 | Phase 3 | WSS Gateway Security | ✅ Complete |
 | 2024-11 | Phase 4 | ESP32 Firmware & WSS Integration | ✅ Complete |
 | 2024-11 | Phase 5 | Rate Limiting & Device Registration | ✅ Complete |
+| 2025-11 | Phase 6 | Codebase Enhancement & CI/CD | ✅ Complete |
+
+---
+
+## Phase 6: Codebase Enhancement & CI/CD
+
+**Status**: ✅ Completed
+
+### Overview
+
+Comprehensive codebase enhancement including CI/CD pipeline, shared models library, group chat functionality, and history service with database integration.
+
+### Completed Tasks
+
+- [x] **Core Crate Enhancement**
+  - Shared data models (User, Message, Group, Device, Presence)
+  - Common error handling with `UnhidraError`
+  - Repository traits for CRUD operations
+  - Service configuration utilities
+  - Health check traits
+  - Files: `core/src/{models,error,traits,config}.rs`
+
+- [x] **CI/CD Pipeline**
+  - GitHub Actions workflow for CI
+  - Format checking with `cargo fmt`
+  - Lint checking with `cargo clippy`
+  - Test execution with `cargo test`
+  - Security audit with `cargo-audit`
+  - Documentation generation
+  - Code coverage with `cargo-llvm-cov`
+  - Docker image building
+  - Release workflow with GitHub releases
+  - Files: `.github/workflows/{ci,release}.yml`
+
+- [x] **Linting Configuration**
+  - Workspace-level Rust lints (forbid unsafe_code)
+  - Clippy configuration with pedantic, nursery lints
+  - Rustfmt configuration
+  - Files: `.rustfmt.toml`, `clippy.toml`, `Cargo.toml`
+
+- [x] **History Service Enhancement**
+  - SQLite database integration with SQLx 0.8
+  - Message persistence and retrieval
+  - Room-based message queries
+  - User message queries
+  - Full-text search functionality
+  - Pagination support
+  - Health check endpoint
+  - Files: `history-service/src/{main,db,handlers,models}.rs`
+
+- [x] **Chat Service with Group Chat**
+  - Group creation and management
+  - Member roles (owner, admin, moderator, member)
+  - Group membership management (join, leave, add, remove)
+  - Real-time message broadcasting (DashMap + broadcast channels)
+  - Message persistence with SQLite
+  - User's groups listing
+  - Health check endpoint
+  - Files: `chat-service/src/{main,db,handlers,models,state}.rs`
+
+### Infrastructure Improvements
+
+| Improvement | Description |
+|-------------|-------------|
+| Shared models | Consistent data types across services |
+| CI/CD automation | Automated testing, linting, security |
+| Database persistence | SQLite with migrations |
+| Group chat | Multi-user room-based messaging |
+| Code quality | Workspace-wide linting rules |
 
 ---
 
@@ -188,9 +257,10 @@ Implemented secure ESP32 firmware using the modern `esp-idf-svc` ecosystem for I
 
 | Metric | Value |
 |--------|-------|
-| Phases Completed | 5 |
-| New Crates Added | 3 (ml-bridge, jwt-common enhanced, firmware) |
-| Security Improvements | 20+ |
-| Test Coverage | Unit tests for auth, ML bridge, gateway |
+| Phases Completed | 6 |
+| New Crates Added | 4 (ml-bridge, jwt-common, firmware, core enhanced) |
+| Security Improvements | 25+ |
+| Test Coverage | Unit tests for auth, ML bridge, gateway, history, chat |
 | Supported Platforms | Linux (backend), ESP32 family (firmware) |
 | Docker Support | Full compose with Prometheus/Grafana |
+| CI/CD | GitHub Actions (lint, test, security, coverage, Docker) |

@@ -2,6 +2,19 @@
 
 ## Recently Completed
 
+### Phase 6: Codebase Enhancement & CI/CD ✅
+- [x] Enhanced core crate with shared models (User, Message, Group, Device, Presence)
+- [x] Common error handling with `UnhidraError` type
+- [x] Repository traits and service configuration utilities
+- [x] GitHub Actions CI/CD pipeline (lint, test, security, coverage)
+- [x] Release workflow with Docker image publishing
+- [x] Workspace-wide linting (.rustfmt.toml, clippy.toml)
+- [x] History service with SQLite database integration
+- [x] Full-text search for message history
+- [x] Chat service with group chat functionality
+- [x] Group membership management (join, leave, roles)
+- [x] Real-time message broadcasting
+
 ### Phase 5: Rate Limiting & Device Registration ✅
 - [x] Gateway service rate limiting (per-IP, per-user, per-connection)
 - [x] Auth API rate limiting (login, registration, device registration)

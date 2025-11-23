@@ -1,0 +1,26 @@
+# Clippy configuration for Unhidra
+# https://rust-lang.github.io/rust-clippy/master/index.html
+
+# Cognitive complexity threshold
+cognitive-complexity-threshold = 25
+
+# Max struct bool fields
+max-struct-bools = 3
+
+# Max function arguments
+too-many-arguments-threshold = 7
+
+# Type complexity threshold
+type-complexity-threshold = 250
+
+# Allowed names for identifiers
+allowed-ident-chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+
+# Single char binding names
+single-char-binding-names-threshold = 4
+
+# Verbose bit mask threshold
+verbose-bit-mask-threshold = 1
+
+# Max line length (matches rustfmt)
+max-line-length = 100

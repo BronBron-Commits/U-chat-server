@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries
+        run: cargo build --workspace --release
+
+      - name: Create release archive
+        run: |
+          mkdir -p release
+          cp target/release/auth-api release/ 2>/dev/null || true
+          cp target/release/gateway-service release/ 2>/dev/null || true
+          cp target/release/chat-service release/ 2>/dev/null || true
+          cp target/release/presence-service release/ 2>/dev/null || true
+          cp target/release/history-service release/ 2>/dev/null || true
+          cp target/release/client release/ 2>/dev/null || true
+          tar -czvf unhidra-${{ github.ref_name }}-linux-x86_64.tar.gz -C release .
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unhidra-${{ github.ref_name }}-linux-x86_64
+          path: unhidra-${{ github.ref_name }}-linux-x86_64.tar.gz
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: unhidra-${{ github.ref_name }}-linux-x86_64.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-release:
+    name: Docker Release
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build and push auth-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.auth-api
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/unhidra-auth-api:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/unhidra-auth-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push gateway-service
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.gateway
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/unhidra-gateway:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/unhidra-gateway:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

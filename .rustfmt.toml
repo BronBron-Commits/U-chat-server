@@ -1,0 +1,38 @@
+# Rustfmt configuration for Unhidra
+# https://rust-lang.github.io/rustfmt/
+
+# Stable options
+edition = "2021"
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Auto"
+use_small_heuristics = "Default"
+
+# Imports
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+reorder_imports = true
+reorder_modules = true
+
+# Comments
+format_code_in_doc_comments = true
+wrap_comments = false
+normalize_comments = false
+normalize_doc_attributes = false
+
+# Spacing
+space_after_colon = true
+space_before_colon = false
+spaces_around_ranges = false
+
+# Structs
+use_field_init_shorthand = true
+struct_lit_single_line = true
+
+# Misc
+match_block_trailing_comma = false
+trailing_comma = "Vertical"
+trailing_semicolon = true
+use_try_shorthand = true
+format_strings = false

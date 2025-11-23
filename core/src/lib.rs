@@ -1,14 +1,15 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Core shared types and utilities for Unhidra services
+//!
+//! This crate provides common models, traits, and utilities used across
+//! all Unhidra microservices to ensure consistency and reduce duplication.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod models;
+pub mod error;
+pub mod traits;
+pub mod config;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+// Re-export commonly used types
+pub use models::*;
+pub use error::{UnhidraError, Result};
+pub use traits::*;
+pub use config::ServiceConfig;
