@@ -1,120 +1,111 @@
-//! Gateway Service - WebSocket Real-Time Fabric
-//!
-//! This service provides secure WebSocket connections for real-time
-//! bidirectional communication between browser clients and IoT devices.
-//!
-//! # Security Features
-//! - JWT token authentication via Sec-WebSocket-Protocol header (using jwt-common)
-//! - Origin validation for CSRF protection
-//! - Room-based isolation with broadcast channels
-//! - TLS encryption required in production (wss://)
-//!
-//! # Architecture
-//! - DashMap for lock-free concurrent room management
-//! - Tokio broadcast channels for efficient fan-out messaging
-//! - Automatic resource cleanup on disconnect
+use tokio::net::TcpListener;
+use tokio::sync::{broadcast, mpsc};
+use tokio_tungstenite::accept_async;
 
-mod state;
-mod ws_handler;
+use futures_util::stream::StreamExt;
+use futures_util::SinkExt;
 
-use axum::{http::Method, routing::get, Router};
-use std::sync::Arc;
-use tower_http::cors::{Any, CorsLayer};
-use tracing::info;
+use tungstenite::protocol::Message;
 
-use state::AppState;
-use ws_handler::ws_handler;
+use uchat_proto::events::{ClientEvent, ServerEvent};
+use uchat_proto::jwt::{create_token};
 
-/// Server configuration from environment variables.
-struct Config {
-    /// Server bind address
-    bind_addr: String,
-    /// Allowed origins for WebSocket connections (comma-separated)
-    allowed_origins: Vec<String>,
-}
-
-impl Config {
-    fn from_env() -> Self {
-        let bind_addr =
-            std::env::var("GATEWAY_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:9000".to_string());
-
-        let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-            .map(|s| s.split(',').map(|o| o.trim().to_string()).collect())
-            .unwrap_or_else(|_| {
-                // Default: allow localhost for development
-                vec![
-                    "http://localhost:3000".to_string(),
-                    "http://127.0.0.1:3000".to_string(),
-                ]
-            });
-
-        Self {
-            bind_addr,
-            allowed_origins,
-        }
-    }
-}
+use serde_json;
+use anyhow::Result;
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing for structured logging
-    tracing_subscriber_init();
+    let listener = TcpListener::bind("0.0.0.0:9000").await.unwrap();
 
-    let config = Config::from_env();
+    let (tx, _rx) = broadcast::channel::<String>(1024);
 
-    // Create shared application state
-    // JWT_SECRET is read by AppState::from_env via jwt-common's TokenService
-    let state = Arc::new(AppState::from_env(config.allowed_origins.clone()));
+    println!("gateway-service listening on ws://0.0.0.0:9000/ws");
 
-    // Configure CORS for WebSocket handshake
-    // Note: WebSocket connections use GET method for upgrade
-    let cors = CorsLayer::new()
-        .allow_methods([Method::GET])
-        .allow_headers(Any)
-        .allow_origin(
-            config
-                .allowed_origins
-                .iter()
-                .filter_map(|o| o.parse().ok())
-                .collect::<Vec<_>>(),
-        );
+    loop {
+        let (stream, _) = listener.accept().await.unwrap();
+        let tx = tx.clone();
+        let mut rx = tx.subscribe();
 
-    // Build the router with WebSocket endpoint
-    let app = Router::new()
-        .route("/ws", get(ws_handler))
-        .route("/health", get(health_check))
-        .layer(cors)
-        .with_state(state);
-
-    info!(
-        bind_addr = config.bind_addr,
-        origins = ?config.allowed_origins,
-        "Gateway service starting"
-    );
-
-    // Start the server
-    let listener = tokio::net::TcpListener::bind(&config.bind_addr)
-        .await
-        .expect("Failed to bind to address");
-
-    info!("Gateway service running on {}", config.bind_addr);
-
-    axum::serve(listener, app)
-        .await
-        .expect("Server failed to start");
+        tokio::spawn(async move {
+            if let Err(e) = handle_connection(stream, tx, &mut rx).await {
+                eprintln!("connection error: {:?}", e);
+            }
+        });
+    }
 }
 
-/// Health check endpoint for load balancers and monitoring.
-async fn health_check() -> &'static str {
-    "OK"
-}
+async fn handle_connection(
+    stream: tokio::net::TcpStream,
+    tx: broadcast::Sender<String>,
+    rx: &mut broadcast::Receiver<String>,
+) -> Result<()> {
+    let ws_stream = accept_async(stream).await?;
+    let (ws_write, mut ws_read) = ws_stream.split();
 
-/// Initialize tracing subscriber for structured logging.
-fn tracing_subscriber_init() {
-    use tracing_subscriber::{fmt, EnvFilter};
+    let secret = "MY_SECRET_KEY";
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("gateway_service=info,tower_http=info"));
+    // Writer channel
+    let (msg_tx, mut msg_rx) = mpsc::unbounded_channel::<Message>();
 
-    fmt().with_env_filter(filter).init();
+    // Writer task (the ONLY task that touches ws_write)
+    let mut ws_write = ws_write;
+    let writer = tokio::spawn(async move {
+        while let Some(msg) = msg_rx.recv().await {
+            if ws_write.send(msg).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    // Broadcast listener task
+    let msg_tx_clone = msg_tx.clone();
+    let mut rx2 = rx.resubscribe();
+    let broadcaster = tokio::spawn(async move {
+        while let Ok(msg) = rx2.recv().await {
+            let event = ServerEvent::MessageBroadcast {
+                from: "user".into(),
+                content: msg,
+            };
+            if let Ok(json) = serde_json::to_string(&event) {
+                let _ = msg_tx_clone.send(Message::Text(json));
+            }
+        }
+    });
+
+    // Reader loop
+    while let Some(msg) = ws_read.next().await {
+        match msg {
+            Ok(Message::Text(text)) => {
+                match serde_json::from_str::<ClientEvent>(&text) {
+                    Ok(event) => match event {
+                        ClientEvent::Login { username, password: _ } => {
+                            let token = create_token(secret, &username);
+                            let reply = ServerEvent::LoginOk { token };
+                            let json = serde_json::to_string(&reply)?;
+                            let _ = msg_tx.send(Message::Text(json));
+                        }
+
+                        ClientEvent::SendMessage { content } => {
+                            let _ = tx.send(content);
+                        }
+                    },
+
+                    Err(_) => {
+                        let err = ServerEvent::Error {
+                            details: "Invalid event".into(),
+                        };
+                        let json = serde_json::to_string(&err)?;
+                        let _ = msg_tx.send(Message::Text(json));
+                    }
+                }
+            }
+
+            Ok(Message::Close(_)) => break,
+            _ => {}
+        }
+    }
+
+    writer.abort();
+    broadcaster.abort();
+    Ok(())
 }

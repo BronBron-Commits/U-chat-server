@@ -1,28 +1,12 @@
 [workspace]
+resolver = "2"
+
 members = [
     "auth-api",
-    "auth-service",
-    "bot",
-    "bot-service",
-    "chat-service",
-    "client",
-    "core",
-    "event-hub-service",
     "gateway-service",
-    "history-service",
-    "jwt-common",
-    "net",
+    "chat-service",
     "presence-service",
-    "proto",
-    "server",
-    "storage",
+    "history-service",
+    "bot-service",
+    "uchat-proto"
 ]
-
-exclude = [
-    "unhidra-snapshot-gui",
-    "unhidra-snapshots",
-    "unhidra-vcs-gui",
-    "startup-check",
-]
-
-resolver = "3"

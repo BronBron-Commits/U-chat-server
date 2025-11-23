@@ -11,130 +11,74 @@
 
 ## Project Structure
 
-- `auth-api/` - HTTP-based authentication API (Argon2id password hashing, JWT generation)
-- `gateway-service/` - WebSocket gateway with token validation and room-based pub/sub
-- `jwt-common/` - Shared JWT token handling crate (used by auth-api and gateway-service)
+### Backend Services
+- `auth-api/` - HTTP-based authentication API (Argon2id password hashing)
 - `auth-service/` - WebSocket-based auth service
+- `gateway-service/` - WebSocket gateway with JWT token validation (WSS)
 - `chat-service/` - Chat functionality
 - `presence-service/` - User presence tracking
 - `history-service/` - Chat history
+- `ml-bridge/` - ML IPC sidecar for Python inference isolation
+
+### IoT/Embedded
+- `firmware/` - ESP32 firmware with secure WSS client (Phase 4)
+  - `src/main.rs` - Main application with Wi-Fi and WebSocket client
+  - `Cargo.toml` - Dependencies (esp-idf-svc, esp-idf-sys)
+  - `sdkconfig.defaults` - ESP-IDF SDK configuration
+  - `.cargo/config.toml` - Target and build configuration
+
+### Infrastructure
 - `migrations/` - Database migration scripts
+- `scripts/` - Utility scripts (inference_worker.py)
 
 ## Security Guidelines
 
 - Use Argon2id for all password hashing (see `auth-api/src/services/auth_service.rs`)
-- Use `jwt-common` crate for all JWT operations (unified token handling)
-- Never commit secrets or credentials
+- Never commit secrets or credentials (use .env files, excluded from git)
 - Follow OWASP security best practices
 - Use constant-time comparisons for sensitive data
-- WebSocket tokens must use Sec-WebSocket-Protocol header (not URL query params)
-- Validate Origin header on WebSocket connections to prevent CSWSH attacks
+- **WSS Required**: All WebSocket connections must use TLS (wss://)
+- **Certificate Verification**: ESP32 firmware uses CA bundle for server verification
+- **Device Authentication**: Devices authenticate via Sec-WebSocket-Protocol header
 
 ## Development Notes
 
+### Backend
 - Run tests before committing: `cargo test -p <package-name>`
 - Apply database migrations from `migrations/` folder
 - Use `PasswordService::new_dev()` for faster testing (dev parameters only)
-- Set `JWT_SECRET` environment variable (same for all services)
 
-## JWT Common Crate
+### ESP32 Firmware
+- Requires ESP-IDF v5.2+ and Rust toolchain for Xtensa
+- Configure device credentials in `firmware/.env` (copy from `.env.example`)
+- Build: `cd firmware && cargo build --release`
+- Flash: `cd firmware && cargo run --release`
+- Target architectures: ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6
 
-The `jwt-common` crate provides unified JWT handling:
+## Security Phases Implemented
 
-```rust
-use jwt_common::{Claims, TokenService, DEFAULT_EXPIRATION_SECS};
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Argon2id Password Hashing | ✅ Complete |
+| 2 | ML IPC Sidecar Isolation | ✅ Complete |
+| 3 | WSS Gateway Security | 🔄 In Progress |
+| 4 | ESP32 Firmware & WSS Integration | ✅ Complete |
 
-// Create service (reads JWT_SECRET from env)
-let service = TokenService::from_env();
+## Quick Reference
 
-// Generate token
-let claims = Claims::new("username", DEFAULT_EXPIRATION_SECS, None);
-let token = service.generate(&claims)?;
+```bash
+# Run all backend tests
+cargo test --workspace
 
-// Validate token
-let validated = service.validate(&token)?;
-println!("User: {}, Room: {}", validated.sub, validated.room_id());
+# Build release binaries
+cargo build --release
+
+# Start auth-api
+./target/release/auth-api
+
+# Build ESP32 firmware
+cd firmware && cargo build --release
+
+# Flash ESP32 (with monitor)
+cd firmware && cargo run --release
 ```
-
-### Token Claims Structure
-
-| Claim | Type | Required | Description |
-|-------|------|----------|-------------|
-| `sub` | String | Yes | Subject (username) |
-| `exp` | usize | Yes | Expiration timestamp |
-| `iat` | usize | Yes | Issued-at timestamp |
-| `room` | String | No | Custom room assignment |
-| `display_name` | String | No | User display name |
-
-## Gateway Service (WebSocket)
-
-### Architecture
-
-The gateway-service provides real-time bidirectional WebSocket communication:
-
-- **Token Auth**: JWT validated via `Sec-WebSocket-Protocol` header using `jwt-common`
-- **Room-Based**: Clients join rooms based on token claims (user ID or custom room)
-- **Pub/Sub**: DashMap + tokio::broadcast for efficient fan-out messaging
-- **Cleanup**: Automatic resource cleanup when rooms become empty
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `gateway-service/src/main.rs` | Server setup, CORS, routing |
-| `gateway-service/src/state.rs` | AppState with TokenService and RoomsMap |
-| `gateway-service/src/ws_handler.rs` | WebSocket handler with jwt-common validation |
-
-## Auth API
-
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `auth-api/src/main.rs` | Server setup, routing |
-| `auth-api/src/handlers.rs` | Login handler with JWT generation |
-| `auth-api/src/services/auth_service.rs` | Argon2id password hashing |
-
-## Environment Variables
-
-| Variable | Service | Description | Default |
-|----------|---------|-------------|---------|
-| `JWT_SECRET` | All | JWT signing secret (shared) | `supersecret` |
-| `GATEWAY_BIND_ADDR` | gateway-service | Server bind address | `0.0.0.0:9000` |
-| `ALLOWED_ORIGINS` | gateway-service | Comma-separated allowed origins | `http://localhost:3000,http://127.0.0.1:3000` |
-| `AUTH_BIND_ADDR` | auth-api | Server bind address | `0.0.0.0:9200` |
-| `AUTH_DB_PATH` | auth-api | SQLite database path | `/opt/unhidra/auth.db` |
-
-## Client Integration Example
-
-```javascript
-// 1. Login to get JWT token
-const response = await fetch('http://localhost:9200/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'user', password: 'pass' })
-});
-const { token } = await response.json();
-
-// 2. Connect WebSocket with token
-const ws = new WebSocket("ws://localhost:9000/ws", ["bearer", token]);
-
-ws.onopen = () => console.log("Connected");
-ws.onmessage = (e) => console.log("Received:", e.data);
-ws.send("Hello room!");
-```
-
-## Phase Status
-
-- **Phase 1**: Completed - Argon2id password hashing
-- **Phase 2**: Completed - JWT token generation (integrated with Phase 3)
-- **Phase 3**: Completed - WebSocket fabric hardening
-
-All phases are now integrated via the shared `jwt-common` crate.
-
-## Optional Enhancements (Future Work)
-
-- **EF-CHAT-01**: Room message history endpoint
-- **EF-CHAT-02**: Typing indicator broadcast
-- **EF-OBS-02**: Prometheus metrics for WebSocket
-- **EF-SEC-01**: Rate limiting on login endpoint

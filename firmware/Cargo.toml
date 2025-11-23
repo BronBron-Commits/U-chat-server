@@ -1,0 +1,111 @@
+[package]
+name = "unhidra-firmware"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unhidra Team"]
+description = "Secure ESP32 firmware for Unhidra IoT devices"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["binstart"]
+# binstart feature enables esp-idf-svc startup glue
+binstart = ["esp-idf-svc/binstart"]
+
+[dependencies]
+# ESP-IDF Service Crate - High-level abstractions for ESP-IDF
+# Provides: Wi-Fi, WebSocket, TLS, NVS, and more
+esp-idf-svc = { version = "0.49", default-features = false, features = [
+    "std",
+    "binstart",
+    "alloc",
+    "embassy-sync",
+    "critical-section",
+] }
+
+# ESP-IDF System Bindings
+esp-idf-sys = { version = "0.35", default-features = false }
+
+# ESP-IDF HAL (Hardware Abstraction Layer)
+esp-idf-hal = { version = "0.44", default-features = false }
+
+# Logging
+log = "0.4"
+
+# Error handling
+anyhow = "1.0"
+
+# Serialization (for JSON messages)
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+# Embedded-specific utilities
+embedded-svc = "0.28"
+
+[build-dependencies]
+# Build-time configuration
+embuild = "0.32"
+
+# Load environment variables from .env file
+dotenvy = "0.15"
+
+[profile.release]
+# Optimize for size (important for embedded)
+opt-level = "s"
+# Enable LTO for smaller binary
+lto = true
+# Reduce codegen units for better optimization
+codegen-units = 1
+# Strip debug info in release
+debug = false
+# Abort on panic (smaller binary, no unwinding)
+panic = "abort"
+
+[profile.dev]
+# Debug builds with some optimization
+opt-level = 1
+# Keep debug info
+debug = true
+# Faster builds with more codegen units
+codegen-units = 16
+# Abort on panic for consistency
+panic = "abort"
+
+# ============================================================================
+# ESP-IDF Build Configuration
+# ============================================================================
+# The following sections configure how esp-idf-sys builds the IDF framework
+
+[package.metadata.esp-idf-sys]
+# ESP-IDF version to use
+esp_idf_version = "v5.2"
+
+# Native build (not PIO)
+esp_idf_tools_install_dir = "global"
+
+# Components to include
+esp_idf_components = [
+    "esp_websocket_client",
+    "esp-tls",
+    "esp_http_client",
+    "nvs_flash",
+    "esp_wifi",
+    "esp_event",
+]
+
+# ============================================================================
+# Cargo Features Documentation
+# ============================================================================
+#
+# esp-idf-svc features:
+#   - std: Enable standard library support
+#   - binstart: Include ESP-IDF startup code (link_patches)
+#   - alloc: Enable heap allocation
+#   - embassy-sync: Async runtime support
+#   - critical-section: Thread-safe critical sections
+#
+# Target architectures:
+#   - xtensa-esp32-espidf (ESP32)
+#   - xtensa-esp32s2-espidf (ESP32-S2)
+#   - xtensa-esp32s3-espidf (ESP32-S3)
+#   - riscv32imc-esp-espidf (ESP32-C3)
+#   - riscv32imac-esp-espidf (ESP32-C6)
