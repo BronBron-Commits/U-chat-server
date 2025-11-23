@@ -10,6 +10,7 @@ members = [
     "event-hub-service",
     "gateway-service",
     "history-service",
+    "ml-bridge",
     "net",
     "presence-service",
     "proto",

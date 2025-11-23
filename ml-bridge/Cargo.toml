@@ -1,0 +1,24 @@
+[package]
+name = "ml-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "ML inference IPC sidecar bridge for Unhidra"
+license = "MIT"
+
+[dependencies]
+# Async runtime with process, network, and sync features
+tokio = { version = "1.48", features = ["net", "process", "sync", "rt", "time", "io-util", "macros"] }
+
+# Serialization for IPC payloads
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging/tracing for structured observability
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.48", features = ["full", "test-util"] }
