@@ -1,0 +1,33 @@
+apiVersion: v2
+name: unhidra
+description: Enterprise-ready secure chat and automation platform with E2EE, SSO, and IoT support
+type: application
+version: 0.1.0
+appVersion: "0.3.0"
+
+keywords:
+  - chat
+  - e2ee
+  - enterprise
+  - iot
+  - mqtt
+  - websocket
+  - sso
+
+home: https://github.com/Matthewtgordon/Unhidra
+
+maintainers:
+  - name: Unhidra Team
+
+dependencies:
+  - name: postgresql
+    version: "15.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "18.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+
+annotations:
+  category: Communication

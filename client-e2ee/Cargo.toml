@@ -1,0 +1,33 @@
+[package]
+name = "client-e2ee"
+version = "0.1.0"
+edition = "2021"
+description = "Client-side E2EE operations for web and native clients"
+
+[dependencies]
+# E2EE core library
+e2ee = { path = "../e2ee" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Base64 encoding
+base64 = { workspace = true }
+
+# Secure memory
+zeroize = { workspace = true }
+
+[features]
+default = []
+# Enable web storage support (IndexedDB via wasm-bindgen)
+web = []
+# Enable native keychain support
+native = []

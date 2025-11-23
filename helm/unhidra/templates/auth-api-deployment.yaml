@@ -1,0 +1,121 @@
+{{- if .Values.authApi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "unhidra.authApi.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-api
+spec:
+  {{- if not .Values.authApi.autoscaling.enabled }}
+  replicas: {{ .Values.authApi.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "unhidra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: auth-api
+  template:
+    metadata:
+      labels:
+        {{- include "unhidra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: auth-api
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "unhidra.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: auth-api
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.authApi.image.repository }}:{{ .Values.authApi.image.tag }}"
+          imagePullPolicy: {{ .Values.authApi.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+          env:
+            - name: AUTH_BIND_ADDR
+              value: "0.0.0.0:9200"
+            - name: AUTH_DB_PATH
+              value: "/data/auth.db"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "unhidra.fullname" . }}-secrets
+                  key: jwt-secret
+            {{- if .Values.authApi.webauthn }}
+            - name: WEBAUTHN_RP_ID
+              value: {{ .Values.authApi.webauthn.rpId | quote }}
+            - name: WEBAUTHN_RP_NAME
+              value: {{ .Values.authApi.webauthn.rpName | quote }}
+            - name: WEBAUTHN_RP_ORIGIN
+              value: {{ .Values.authApi.webauthn.rpOrigin | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.authApi.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          {{- if .Values.authApi.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "unhidra.authApi.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "unhidra.authApi.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-api
+spec:
+  type: {{ .Values.authApi.service.type }}
+  ports:
+    - port: {{ .Values.authApi.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "unhidra.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-api
+{{- if .Values.authApi.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "unhidra.authApi.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-api
+spec:
+  minAvailable: {{ .Values.authApi.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "unhidra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: auth-api
+{{- end }}
+{{- end }}

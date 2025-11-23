@@ -1,0 +1,323 @@
+# Default values for unhidra.
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Common labels applied to all resources
+commonLabels: {}
+
+# Common annotations applied to all resources
+commonAnnotations: {}
+
+# ============================================================================
+# Auth API Configuration
+# ============================================================================
+authApi:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: unhidra/auth-api
+    tag: "0.3.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 9200
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+  # Pod disruption budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  # Environment variables
+  env:
+    AUTH_BIND_ADDR: "0.0.0.0:9200"
+
+  # Secrets (reference existing secrets)
+  existingSecret: ""
+
+  # OIDC SSO Configuration
+  oidc:
+    enabled: false
+    # Configure via secrets
+    # OIDC_OKTA_ISSUER_URL, OIDC_OKTA_CLIENT_ID, OIDC_OKTA_CLIENT_SECRET
+
+  # WebAuthn Configuration
+  webauthn:
+    rpId: "unhidra.example.com"
+    rpName: "Unhidra"
+    rpOrigin: "https://unhidra.example.com"
+
+# ============================================================================
+# Gateway Service Configuration
+# ============================================================================
+gatewayService:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: unhidra/gateway-service
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 9000
+
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+  env:
+    GATEWAY_BIND_ADDR: "0.0.0.0:9000"
+
+  # Rate limiting configuration
+  rateLimiting:
+    perIpConnectionsPerMinute: 60
+    perUserConnectionsPerMinute: 30
+    perConnectionMessagesPerSecond: 50
+
+# ============================================================================
+# Chat Service Configuration
+# ============================================================================
+chatService:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: unhidra/chat-service
+    tag: "0.2.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3001
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+
+# ============================================================================
+# Presence Service Configuration
+# ============================================================================
+presenceService:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: unhidra/presence-service
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3002
+
+  resources:
+    limits:
+      cpu: 250m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# ============================================================================
+# History Service Configuration
+# ============================================================================
+historyService:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: unhidra/history-service
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 3003
+
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ============================================================================
+# E2EE Configuration
+# ============================================================================
+e2ee:
+  # Enforce E2EE for all messages
+  enforced: true
+  # Protocol version
+  protocolVersion: 1
+
+# ============================================================================
+# Security Configuration
+# ============================================================================
+security:
+  # Enable FIPS mode (use ring + FIPS-validated Rustls)
+  fipsMode: false
+
+  # TLS configuration
+  tls:
+    enabled: true
+    certManager:
+      enabled: false
+      issuerRef:
+        name: letsencrypt-prod
+        kind: ClusterIssuer
+
+    # Or provide existing secret
+    existingSecret: ""
+
+  # Network policies
+  networkPolicies:
+    enabled: true
+
+# ============================================================================
+# PostgreSQL Configuration (via Bitnami chart)
+# ============================================================================
+postgresql:
+  enabled: true
+  auth:
+    username: unhidra
+    database: unhidra
+    existingSecret: ""
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# ============================================================================
+# Redis Configuration (via Bitnami chart)
+# ============================================================================
+redis:
+  enabled: true
+  architecture: standalone
+
+  auth:
+    enabled: true
+    existingSecret: ""
+
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# ============================================================================
+# Ingress Configuration
+# ============================================================================
+ingress:
+  enabled: true
+  className: nginx
+
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "gateway-service"
+
+  hosts:
+    - host: unhidra.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: gateway-service
+        - path: /auth
+          pathType: Prefix
+          service: auth-api
+        - path: /api
+          pathType: Prefix
+          service: chat-service
+
+  tls:
+    - secretName: unhidra-tls
+      hosts:
+        - unhidra.example.com
+
+# ============================================================================
+# Monitoring Configuration
+# ============================================================================
+monitoring:
+  enabled: true
+
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+
+  grafana:
+    enabled: false
+    dashboards:
+      enabled: true
+
+# ============================================================================
+# Service Account
+# ============================================================================
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ============================================================================
+# Pod Security
+# ============================================================================
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

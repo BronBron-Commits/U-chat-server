@@ -1,0 +1,45 @@
+[package]
+name = "e2ee"
+version = "0.1.0"
+edition = "2021"
+description = "End-to-End Encryption library using Double Ratchet, X25519, and ChaCha20Poly1305"
+
+[dependencies]
+# Noise Protocol Framework (Double Ratchet with XX handshake)
+snow = { workspace = true }
+
+# Key exchange
+x25519-dalek = { workspace = true }
+
+# Symmetric encryption
+chacha20poly1305 = { workspace = true }
+
+# Key derivation
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+
+# Randomness
+rand = { workspace = true }
+rand_core = { workspace = true }
+
+# Encoding
+base64 = { workspace = true }
+hex = { workspace = true }
+
+# Memory safety
+zeroize = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Utilities
+once_cell = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

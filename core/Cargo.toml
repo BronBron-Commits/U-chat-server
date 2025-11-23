@@ -1,12 +1,38 @@
 [package]
 name = "core"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
+description = "Core utilities and audit logging for Unhidra"
 
 [dependencies]
-anyhow = "1.0.100"
-serde = "1.0.228"
-serde_json = "1.0.145"
-thiserror = "2.0.17"
-tracing = "0.1.41"
-tracing-subscriber = "0.3.20"
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+async-trait = "0.1"
+once_cell = { workspace = true }
+tokio = { workspace = true }
+
+# Optional: Redis for distributed audit
+redis = { workspace = true, optional = true }
+
+# Optional: SQLite for local audit
+rusqlite = { version = "0.31", features = ["bundled"], optional = true }
+
+[features]
+default = []
+redis-audit = ["redis"]
+sqlite-audit = ["rusqlite"]

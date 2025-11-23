@@ -1,18 +1,45 @@
 [package]
 name = "chat-service"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Chat service with Redis Streams for horizontal scaling"
 
 [dependencies]
+# HTTP framework
 axum = "0.7"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tower-http = { version = "0.4", features = ["cors"] }
-rusqlite = { version = "0.31", features = ["bundled"] }
-chrono = "0.4"
-tungstenite = "0.28"
-tokio-tungstenite = "0.28"
+tower = { version = "0.5", features = ["util", "limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Redis for pub/sub and streams
+redis = { workspace = true }
+
+# Database (optional, for message persistence)
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Time handling
+chrono = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+dashmap = { workspace = true }
+futures-util = { workspace = true }
+
+# Internal crates
 proto = { path = "../proto" }
-tower = { version = "0.5.2", features = ["util"] }
+jwt-common = { path = "../jwt-common" }
+e2ee = { path = "../e2ee" }

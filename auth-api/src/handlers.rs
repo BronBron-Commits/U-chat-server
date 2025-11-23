@@ -20,6 +20,9 @@ use uuid::Uuid;
 use crate::rate_limiter::AuthRateLimiter;
 use crate::services::PasswordService;
 
+use crate::oidc::OidcService;
+use crate::webauthn_service::WebAuthnService;
+
 /// Shared application state for auth-api handlers
 pub struct AppState {
     /// Database connection (SQLite)
@@ -30,6 +33,10 @@ pub struct AppState {
     pub token_service: TokenService,
     /// Rate limiter
     pub rate_limiter: AuthRateLimiter,
+    /// OIDC SSO service
+    pub oidc_service: OidcService,
+    /// WebAuthn (Passkey) service
+    pub webauthn_service: WebAuthnService,
 }
 
 impl AppState {
@@ -40,6 +47,13 @@ impl AppState {
             password_service: PasswordService::new(),
             token_service: TokenService::from_env(),
             rate_limiter: AuthRateLimiter::from_env(),
+            oidc_service: OidcService::from_env(),
+            webauthn_service: WebAuthnService::from_env()
+                .unwrap_or_else(|e| {
+                    tracing::warn!(error = %e, "WebAuthn initialization failed, using default config");
+                    WebAuthnService::new(crate::webauthn_service::WebAuthnConfig::from_env())
+                        .expect("WebAuthn service creation failed")
+                }),
         }
     }
 
@@ -51,6 +65,12 @@ impl AppState {
             password_service: PasswordService::new_dev(),
             token_service: TokenService::from_env(),
             rate_limiter: AuthRateLimiter::new(),
+            oidc_service: OidcService::new(),
+            webauthn_service: WebAuthnService::new(crate::webauthn_service::WebAuthnConfig {
+                rp_id: "localhost".to_string(),
+                rp_name: "Unhidra Test".to_string(),
+                rp_origin: "http://localhost:9200".to_string(),
+            }).expect("WebAuthn service creation failed"),
         }
     }
 }
@@ -345,4 +365,316 @@ pub async fn stats_handler(State(state): State<Arc<AppState>>) -> Json<serde_jso
         "status": "healthy",
         "rate_limits": state.rate_limiter.get_info()
     }))
+}
+
+// ============================================================================
+// SSO (OpenID Connect) Handlers
+// ============================================================================
+
+use axum::extract::Path;
+use axum::response::Redirect;
+
+use crate::oidc::{OidcService, SsoProviderInfo, SsoProvidersResponse};
+use crate::webauthn_service::{WebAuthnService, CredentialInfo};
+
+/// List available SSO providers
+pub async fn sso_providers_handler(
+    State(state): State<Arc<AppState>>,
+) -> Json<SsoProvidersResponse> {
+    let providers: Vec<SsoProviderInfo> = state
+        .oidc_service
+        .enabled_providers()
+        .iter()
+        .map(|name| SsoProviderInfo::from_name(name))
+        .collect();
+
+    Json(SsoProvidersResponse { providers })
+}
+
+/// Start SSO flow for a provider
+pub async fn sso_start_handler(
+    State(state): State<Arc<AppState>>,
+    Path(provider): Path<String>,
+) -> Result<Redirect, (StatusCode, Json<serde_json::Value>)> {
+    match state.oidc_service.start_auth(&provider).await {
+        Ok((auth_url, _state)) => Ok(Redirect::temporary(&auth_url)),
+        Err(e) => {
+            warn!(provider = provider, error = %e, "SSO start failed");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("SSO initialization failed: {}", e) })),
+            ))
+        }
+    }
+}
+
+/// SSO callback handler
+#[derive(Deserialize)]
+pub struct SsoCallbackParams {
+    pub code: String,
+    pub state: String,
+}
+
+pub async fn sso_callback_handler(
+    State(state): State<Arc<AppState>>,
+    Path(provider): Path<String>,
+    axum::extract::Query(params): axum::extract::Query<SsoCallbackParams>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let user_info = state
+        .oidc_service
+        .complete_auth(&params.state, &params.code)
+        .await
+        .map_err(|e| {
+            warn!(provider = provider, error = %e, "SSO callback failed");
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": format!("SSO authentication failed: {}", e) })),
+            )
+        })?;
+
+    // Create or update user in database
+    let username = user_info.email.clone().unwrap_or_else(|| user_info.sub.clone());
+    let display_name = user_info.name.clone().unwrap_or_else(|| username.clone());
+
+    {
+        let conn = state.db.lock().unwrap();
+
+        // Ensure SSO users table exists
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS sso_users (
+                username TEXT PRIMARY KEY NOT NULL,
+                provider TEXT NOT NULL,
+                provider_sub TEXT NOT NULL,
+                email TEXT,
+                display_name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                last_login TEXT
+            )",
+            [],
+        ).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Database error: {}", e) })))
+        })?;
+
+        // Insert or update user
+        conn.execute(
+            "INSERT INTO sso_users (username, provider, provider_sub, email, display_name, last_login)
+             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+             ON CONFLICT(username) DO UPDATE SET last_login = datetime('now')",
+            rusqlite::params![username, user_info.provider, user_info.sub, user_info.email, display_name],
+        ).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Database error: {}", e) })))
+        })?;
+    }
+
+    // Generate JWT token
+    let claims = Claims::new(&username, DEFAULT_EXPIRATION_SECS, None)
+        .with_display_name(&display_name);
+
+    let token = state.token_service.generate(&claims).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Token generation failed: {}", e) })))
+    })?;
+
+    info!(username = username, provider = user_info.provider, "SSO login successful");
+
+    Ok(Json(json!({
+        "ok": true,
+        "user": username,
+        "display_name": display_name,
+        "provider": user_info.provider,
+        "token": token
+    })))
+}
+
+// ============================================================================
+// WebAuthn (Passkey) Handlers
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct PasskeyRegisterStartRequest {
+    pub token: String,
+    pub device_name: Option<String>,
+}
+
+/// Start passkey registration
+pub async fn passkey_register_start_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyRegisterStartRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    // Validate token
+    let claims = state.token_service.validate(&payload.token).map_err(|_| {
+        (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid token" })))
+    })?;
+
+    let display_name = claims.display_name.clone().unwrap_or_else(|| claims.sub.clone());
+
+    match state.webauthn_service.start_registration(&claims.sub, &claims.sub, &display_name) {
+        Ok((options, challenge)) => {
+            Ok(Json(json!({
+                "ok": true,
+                "challenge": challenge,
+                "options": options
+            })))
+        }
+        Err(e) => {
+            warn!(user = claims.sub, error = %e, "Passkey registration start failed");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("Registration failed: {}", e) })),
+            ))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyRegisterFinishRequest {
+    pub challenge: String,
+    pub credential: serde_json::Value,
+    pub device_name: String,
+}
+
+/// Complete passkey registration
+pub async fn passkey_register_finish_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyRegisterFinishRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let credential: webauthn_rs::prelude::RegisterPublicKeyCredential =
+        serde_json::from_value(payload.credential).map_err(|e| {
+            (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Invalid credential: {}", e) })))
+        })?;
+
+    match state.webauthn_service.complete_registration(&payload.challenge, credential, &payload.device_name) {
+        Ok(stored) => {
+            info!(credential_id = stored.credential_id, "Passkey registered successfully");
+            Ok(Json(json!({
+                "ok": true,
+                "credential_id": stored.credential_id,
+                "name": stored.name
+            })))
+        }
+        Err(e) => {
+            warn!(error = %e, "Passkey registration finish failed");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("Registration failed: {}", e) })),
+            ))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyLoginStartRequest {
+    pub username: Option<String>,
+}
+
+/// Start passkey authentication
+pub async fn passkey_login_start_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyLoginStartRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    match state.webauthn_service.start_authentication(payload.username.as_deref()) {
+        Ok((options, challenge)) => {
+            Ok(Json(json!({
+                "ok": true,
+                "challenge": challenge,
+                "options": options
+            })))
+        }
+        Err(e) => {
+            warn!(username = ?payload.username, error = %e, "Passkey login start failed");
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": format!("Authentication failed: {}", e) })),
+            ))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyLoginFinishRequest {
+    pub challenge: String,
+    pub credential: serde_json::Value,
+}
+
+/// Complete passkey authentication
+pub async fn passkey_login_finish_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyLoginFinishRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let credential: webauthn_rs::prelude::PublicKeyCredential =
+        serde_json::from_value(payload.credential).map_err(|e| {
+            (StatusCode::BAD_REQUEST, Json(json!({ "error": format!("Invalid credential: {}", e) })))
+        })?;
+
+    match state.webauthn_service.complete_authentication(&payload.challenge, credential) {
+        Ok(user_id) => {
+            // Generate JWT token
+            let claims = Claims::new(&user_id, DEFAULT_EXPIRATION_SECS, None);
+            let token = state.token_service.generate(&claims).map_err(|e| {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Token generation failed: {}", e) })))
+            })?;
+
+            info!(user = user_id, "Passkey login successful");
+
+            Ok(Json(json!({
+                "ok": true,
+                "user": user_id,
+                "token": token
+            })))
+        }
+        Err(e) => {
+            warn!(error = %e, "Passkey login finish failed");
+            Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": format!("Authentication failed: {}", e) })),
+            ))
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyListRequest {
+    pub token: String,
+}
+
+/// List user's passkeys
+pub async fn passkey_list_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyListRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let claims = state.token_service.validate(&payload.token).map_err(|_| {
+        (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid token" })))
+    })?;
+
+    let credentials = state.webauthn_service.list_credentials(&claims.sub);
+
+    Ok(Json(json!({
+        "ok": true,
+        "credentials": credentials
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyRevokeRequest {
+    pub token: String,
+    pub credential_id: String,
+}
+
+/// Revoke a passkey
+pub async fn passkey_revoke_handler(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PasskeyRevokeRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let claims = state.token_service.validate(&payload.token).map_err(|_| {
+        (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Invalid token" })))
+    })?;
+
+    match state.webauthn_service.revoke_credential(&claims.sub, &payload.credential_id) {
+        Ok(()) => {
+            info!(user = claims.sub, credential_id = payload.credential_id, "Passkey revoked");
+            Ok(Json(json!({ "ok": true, "message": "Passkey revoked" })))
+        }
+        Err(e) => {
+            Err((StatusCode::NOT_FOUND, Json(json!({ "error": format!("Revocation failed: {}", e) }))))
+        }
+    }
 }

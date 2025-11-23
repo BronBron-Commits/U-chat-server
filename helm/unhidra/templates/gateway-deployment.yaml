@@ -1,0 +1,148 @@
+{{- if .Values.gatewayService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "unhidra.gatewayService.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  {{- if not .Values.gatewayService.autoscaling.enabled }}
+  replicas: {{ .Values.gatewayService.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "unhidra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "unhidra.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "unhidra.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: gateway
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          image: "{{ .Values.global.imageRegistry }}{{ .Values.gatewayService.image.repository }}:{{ .Values.gatewayService.image.tag }}"
+          imagePullPolicy: {{ .Values.gatewayService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+            - name: metrics
+              containerPort: 9001
+              protocol: TCP
+          env:
+            - name: GATEWAY_BIND_ADDR
+              value: "0.0.0.0:9000"
+            - name: REDIS_URL
+              value: {{ include "unhidra.redisUrl" . | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "unhidra.fullname" . }}-secrets
+                  key: jwt-secret
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-redis
+                  key: redis-password
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.gatewayService.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "unhidra.gatewayService.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  type: {{ .Values.gatewayService.service.type }}
+  ports:
+    - port: {{ .Values.gatewayService.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9001
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "unhidra.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+{{- if .Values.gatewayService.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "unhidra.gatewayService.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "unhidra.gatewayService.fullname" . }}
+  minReplicas: {{ .Values.gatewayService.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.gatewayService.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gatewayService.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if .Values.gatewayService.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "unhidra.gatewayService.fullname" . }}
+  labels:
+    {{- include "unhidra.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  minAvailable: {{ .Values.gatewayService.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "unhidra.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+{{- end }}
+{{- end }}

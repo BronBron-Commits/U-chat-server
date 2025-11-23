@@ -1,21 +1,53 @@
 # Todo / Development Tasks
 
-## Recently Completed
+## Recently Completed (Phases 7-13)
 
-### Phase 5: Rate Limiting & Device Registration ✅
-- [x] Gateway service rate limiting (per-IP, per-user, per-connection)
-- [x] Auth API rate limiting (login, registration, device registration)
-- [x] Device registration API (register, list, revoke)
-- [x] Connection tracking with metadata
-- [x] Prometheus metrics integration
-- [x] Docker Compose setup with Prometheus/Grafana
+### Phase 13: Channels, Threads, Files ✅
+- [x] Channels migration with public/private/direct types
+- [x] Thread support with reply counts
+- [x] File uploads schema with encryption
+- [x] Reactions (emoji)
+- [x] Read receipts and typing indicators
 
-### Phase 3: WSS Gateway Security ✅
-- [x] Upgrade gateway to Sec-WebSocket-Protocol authentication
-- [x] Connection tracking with DashMap
-- [x] Graceful connection termination
-- [x] Rate limiting for WebSocket connections
-- [x] Origin validation (CSRF protection)
+### Phase 12: MQTT IoT Bridge ✅
+- [x] MQTT Bridge module (`gateway-service/src/mqtt_bridge.rs`)
+- [x] Topic-based routing
+- [x] Device status tracking
+- [x] TLS mutual auth ready
+
+### Phase 11: Helm Chart ✅
+- [x] Helm chart at `helm/unhidra/`
+- [x] PostgreSQL and Redis dependencies
+- [x] HPA and PDB configurations
+- [x] Gateway and Auth API deployments
+
+### Phase 10: Audit Logging ✅
+- [x] Migration `003_audit_log.sql`
+- [x] Audit module (`core/src/audit.rs`)
+- [x] 30+ audit action types
+- [x] `AuditLogger` trait with Memory backend
+
+### Phase 9: Redis Streams ✅
+- [x] Redis Streams backend (`chat-service/src/redis_streams.rs`)
+- [x] Consumer groups for reliable delivery
+- [x] Message history with XREVRANGE
+
+### Phase 8: SSO + WebAuthn ✅
+- [x] OpenID Connect SSO (Okta, Azure, Keycloak, Google)
+- [x] WebAuthn/Passkey authentication
+- [x] Credential management endpoints
+
+### Phase 7: E2EE Core ✅
+- [x] `e2ee` crate with X3DH and Double Ratchet
+- [x] `client-e2ee` crate for clients
+- [x] ChaCha20Poly1305 encryption
+
+### Phases 1-5: Foundation ✅
+- [x] Argon2id password hashing
+- [x] ML IPC sidecar isolation
+- [x] WSS Gateway Security
+- [x] ESP32 firmware with WSS
+- [x] Rate limiting & device registration
 
 ---
 
