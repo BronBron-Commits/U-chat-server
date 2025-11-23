@@ -1,27 +1,35 @@
-//! Auth API - Authentication service with Argon2id and JWT
+//! Auth API - Authentication service with Argon2id, JWT, and rate limiting
 //!
-//! This service provides HTTP endpoints for user authentication:
+//! Endpoints:
 //! - POST /login - Authenticate user and receive JWT token
+//! - POST /devices/register - Register a new device
+//! - POST /devices/list - List user's devices
+//! - POST /devices/revoke - Revoke a device
 //! - GET /health - Health check endpoint
-//!
-//! # Security Features
-//! - Argon2id password hashing (OWASP compliant)
-//! - JWT token generation with configurable expiration
-//! - Structured logging with tracing
+//! - GET /stats - Service statistics
 
 mod handlers;
+mod rate_limiter;
 mod services;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use rusqlite::Connection;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 
-use handlers::{login_handler, health_handler, AppState};
+use handlers::{
+    health_handler, list_devices_handler, login_handler, register_device_handler,
+    revoke_device_handler, stats_handler, AppState,
+};
 
 #[tokio::main]
 async fn main() {
-    // Initialize tracing for structured logging
+    // Initialize tracing
     tracing_subscriber_init();
 
     let bind_addr = std::env::var("AUTH_BIND_ADDR")
@@ -32,36 +40,49 @@ async fn main() {
 
     // Open SQLite database connection
     let conn = Connection::open(&db_path)
-        .expect(&format!("Failed to open database at {}", db_path));
+        .unwrap_or_else(|_| panic!("Failed to open database at {}", db_path));
 
-    // Create application state with database, password service, and token service
+    // Create application state
     let state = Arc::new(AppState::new(conn));
 
-    // Build router with authentication endpoints
+    // Build router
     let app = Router::new()
+        // Authentication
         .route("/login", post(login_handler))
+        // Device management
+        .route("/devices/register", post(register_device_handler))
+        .route("/devices/list", post(list_devices_handler))
+        .route("/devices/revoke", post(revoke_device_handler))
+        // Health and stats
         .route("/health", get(health_handler))
-        .with_state(state);
+        .route("/stats", get(stats_handler))
+        .with_state(state)
+        .layer(TraceLayer::new_for_http())
+        .layer(CorsLayer::permissive());
 
-    info!(bind_addr = %bind_addr, db_path = %db_path, "Auth API starting");
+    let addr: SocketAddr = bind_addr.parse().expect("Invalid bind address");
 
-    let listener = tokio::net::TcpListener::bind(&bind_addr)
+    info!(bind_addr = %addr, db_path = %db_path, "Auth API starting");
+
+    let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind to address");
 
-    info!("Auth API running on {}", bind_addr);
+    info!("Auth API running on {}", addr);
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server failed to start");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("Server failed");
 }
 
-/// Initialize tracing subscriber for structured logging
 fn tracing_subscriber_init() {
     use tracing_subscriber::{fmt, EnvFilter};
 
     let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("auth_api=info"));
+        .unwrap_or_else(|_| EnvFilter::new("auth_api=info,tower_http=debug"));
 
     fmt().with_env_filter(filter).init();
 }

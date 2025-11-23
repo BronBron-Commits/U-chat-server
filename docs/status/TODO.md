@@ -1,181 +1,152 @@
 # Todo / Development Tasks
 
-## Critical - Phase 3 Completion (Gateway Integration)
+## Recently Completed
 
-### Phase 3: WSS Gateway Security (BLOCKING for ESP32 integration)
+### Phase 5: Rate Limiting & Device Registration ✅
+- [x] Gateway service rate limiting (per-IP, per-user, per-connection)
+- [x] Auth API rate limiting (login, registration, device registration)
+- [x] Device registration API (register, list, revoke)
+- [x] Connection tracking with metadata
+- [x] Prometheus metrics integration
+- [x] Docker Compose setup with Prometheus/Grafana
 
-The ESP32 firmware (Phase 4) is ready and waiting for Phase 3 gateway updates. The firmware sends authentication via `Sec-WebSocket-Protocol` header, but the gateway currently reads from query params.
-
-- [ ] **CRITICAL**: Upgrade gateway to Sec-WebSocket-Protocol authentication
-  - File: `gateway-service/src/main.rs`
-  - Extract token from `Sec-WebSocket-Protocol` header instead of query param
-  - Return the validated subprotocol in response headers
-  - This enables ESP32 firmware connection
-
-- [ ] Add connection tracking with DashMap
-  - Store connected client info (user_id, device_id, connect_time)
-  - Enable targeted message delivery
-  - Support for presence tracking
-
-- [ ] Implement graceful connection termination
-  - Send close frame with reason code
-  - Clean up connection state
-  - Log disconnection events
-
-- [ ] Add rate limiting for WebSocket connections
-  - Limit connections per IP
-  - Limit connections per user/device
-  - Prevent resource exhaustion
+### Phase 3: WSS Gateway Security ✅
+- [x] Upgrade gateway to Sec-WebSocket-Protocol authentication
+- [x] Connection tracking with DashMap
+- [x] Graceful connection termination
+- [x] Rate limiting for WebSocket connections
+- [x] Origin validation (CSRF protection)
 
 ---
 
 ## Current Sprint
 
-### Phase 4 Integration Tasks (Waiting on Phase 3)
+### Testing & Quality
 
-- [ ] **EF-IOT-03**: Test ESP32 firmware with updated gateway
-  - Verify WSS connection establishment
-  - Test authentication flow end-to-end
-  - Validate heartbeat reception on server
-  - Test reconnection after server restart
+- [ ] **TEST-01**: Run full integration test suite
+  - Test gateway WebSocket connections
+  - Test auth API endpoints
+  - Test device registration flow
+  - File: `gateway-service/tests/integration_tests.rs`
 
-- [ ] **EF-IOT-04**: Device registration endpoint
-  - Backend endpoint to register new devices
-  - Generate device API keys
-  - Store device metadata (type, location, capabilities)
+- [ ] **TEST-02**: Load testing with k6 or artillery
+  - WebSocket connection capacity
+  - Rate limiting validation
+  - Memory usage under load
 
-### Phase 4 Optional Enhancements
+### Infrastructure
 
-- [ ] **EF-IOT-01**: Enhanced reconnection backoff
-  - Already implemented basic exponential backoff with jitter
-  - Consider adding: connection quality scoring
-  - Consider adding: adaptive backoff based on failure patterns
+- [ ] **INFRA-01**: TLS termination setup
+  - Configure nginx/traefik for WSS
+  - SSL certificate provisioning
+  - Document HTTPS setup
 
-- [ ] **EF-IOT-02**: Device heartbeat processing
-  - Server-side handler for heartbeat messages
-  - Store last_seen timestamp per device
-  - Alerting for devices that go silent
-  - Dashboard for device fleet health
-
-- [ ] **EF-IOT-05**: OTA firmware updates
-  - Implement OTA update trigger via WebSocket command
-  - Secure firmware signing and verification
-  - Rollback support on boot failure
-  - File: `firmware/src/main.rs` (ota module placeholder exists)
-
-- [ ] **EF-IOT-06**: Custom CA certificate support
-  - For private/enterprise deployments
-  - Flash custom CA to device
-  - Documentation for cert generation
-
-### Phase 2 Optional Enhancements (ML IPC Sidecar)
-
-- [ ] **EF-ML-01**: Health-check endpoint for Python workers
-  - Add `/internal/ml/health` route in gateway-service
-  - Call `PythonWorker::health_check()` with timeout
-  - Return worker status, PID, and uptime
-  - Auto-restart unresponsive workers
-
-- [ ] **EF-ML-02**: Timeouts for ML IPC calls
-  - Wrap all `infer()` calls with `tokio::time::timeout`
-  - Configure timeout via environment variable (default 2s)
-  - Return error to client on timeout
-  - Consider killing/restarting stuck Python process
-
-- [ ] **EF-OBS-01**: Structured logging for key flows
-  - Add correlation IDs to ML requests
-  - Log request sent/response received events
-  - Log Python worker startup/shutdown
-  - Use tracing with JSON output format
-
-- [ ] **EF-OBS-02**: Basic metrics for WebSocket and ML
-  - Add Prometheus metrics (via `metrics` crate)
-  - Track: request count, latency histogram, error count
-  - Expose `/metrics` endpoint
-  - Alert on high error rate or latency
-
-### Phase 1 Optional Enhancements (Authentication)
-
-- [ ] **EF-SEC-01**: Rate limiting on login endpoint
-  - Add Tower rate limiter or governor crate
-  - Limit login attempts per IP/account per minute
-  - Prevents DoS via expensive hash computations
-
-- [ ] **EF-DEVX-01**: Environment-based password cost selection
-  - Implement config-based parameter selection
-  - Use reduced params in development, full params in production
-  - Environment variable or feature flag driven
-
-- [ ] **EF-DEVX-02**: Spec export command
-  - CLI command or protected endpoint
-  - Output current configuration and capabilities
-  - List active features, Argon2 params, build info
+- [ ] **INFRA-02**: Kubernetes manifests
+  - Deployment configurations
+  - Service definitions
+  - ConfigMaps and Secrets
+  - Horizontal Pod Autoscaler
 
 ---
 
 ## Backlog
 
-### ML Infrastructure
-- [ ] Implement actual ML model loading in Python worker
-- [ ] Add model versioning and hot-reload capability
-- [ ] Support multiple concurrent Python workers (round-robin)
-- [ ] Add worker pool management with auto-scaling
-- [ ] Implement binary protocol (MessagePack/protobuf) for large payloads
-
 ### Security Enhancements
 
-- [ ] Implement password change endpoint
-- [ ] Add password reset flow with secure tokens
-- [ ] Implement account lockout after failed attempts
-- [ ] Add audit logging for authentication events
-- [ ] Implement secure boot for ESP32 (production)
-- [ ] Enable flash encryption for ESP32 (production)
+- [ ] **SEC-01**: Account lockout after failed attempts
+  - Track failed login attempts per account
+  - Temporary lockout after N failures
+  - Email notification on lockout
 
-### Migration Tasks
+- [ ] **SEC-02**: Audit logging for security events
+  - Log all authentication attempts
+  - Log device registrations/revocations
+  - Log rate limit violations
+  - Export to SIEM
 
-- [ ] Create legacy hash migration flow
-  - Detect old SHA256 hash format
-  - Re-hash on successful login
-  - Gradual migration without forced resets
+- [ ] **SEC-03**: Password change endpoint
+  - Require current password
+  - Invalidate existing tokens on change
+  - Rate limit password changes
 
-### Infrastructure
-- [ ] Add health check endpoints for all services
-- [ ] Implement proper error handling with custom error types
-- [ ] Set up CI/CD pipeline with security scanning
-- [ ] Add integration tests for ML bridge
-- [ ] Add integration tests for ESP32 firmware (HIL testing)
-- [ ] Docker compose for local development
-- [ ] Kubernetes manifests for production deployment
+- [ ] **SEC-04**: Two-factor authentication (2FA)
+  - TOTP support (Google Authenticator)
+  - Recovery codes
+  - Remember device option
 
-### ESP32 Firmware Roadmap
-- [ ] Support for ESP32 provisioning (SmartConfig/BLE)
-- [ ] Local configuration via BLE before Wi-Fi setup
-- [ ] Support for multiple Wi-Fi networks (fallback)
-- [ ] Deep sleep mode for battery operation
-- [ ] Sensor data collection and transmission
-- [ ] Local command execution from server messages
+### ESP32 Firmware Enhancements
 
----
+- [ ] **IOT-01**: OTA firmware updates
+  - Secure firmware signing
+  - Staged rollout support
+  - Rollback on boot failure
+  - Version management
 
-## Dependency Tracking
+- [ ] **IOT-02**: Device provisioning flow
+  - SmartConfig/BLE provisioning
+  - QR code based setup
+  - Factory reset functionality
 
-### Phase 3 → Phase 4 Integration
+- [ ] **IOT-03**: Sensor data collection
+  - Generic sensor interface
+  - Data buffering for offline mode
+  - Batch upload optimization
 
-```
-Phase 3 (Gateway WSS)          Phase 4 (ESP32 Firmware)
-         │                              │
-         │  Sec-WebSocket-Protocol      │
-         │◄─────────────────────────────┤
-         │                              │
-         │  Authentication validated    │
-         ├─────────────────────────────►│
-         │                              │
-         │  WebSocket connection open   │
-         │◄────────────────────────────►│
-         │                              │
-```
+- [ ] **IOT-04**: Secure boot and flash encryption
+  - Enable ESP32 secure boot
+  - Flash encryption for production
+  - Key management documentation
 
-**Current Status**: Phase 4 firmware is complete and ready. Waiting for Phase 3 to implement subprotocol-based authentication.
+### ML Infrastructure
+
+- [ ] **ML-01**: Health-check endpoint for Python workers
+  - Add `/internal/ml/health` route
+  - Auto-restart unresponsive workers
+  - Worker pool management
+
+- [ ] **ML-02**: Model versioning and hot-reload
+  - Support multiple model versions
+  - A/B testing support
+  - Zero-downtime model updates
+
+- [ ] **ML-03**: Binary protocol for large payloads
+  - MessagePack or Protocol Buffers
+  - Streaming support
+  - Compression
+
+### Observability
+
+- [ ] **OBS-01**: Distributed tracing
+  - OpenTelemetry integration
+  - Trace propagation across services
+  - Jaeger/Zipkin support
+
+- [ ] **OBS-02**: Alerting rules
+  - High error rate alerts
+  - Latency threshold alerts
+  - Connection spike detection
+
+- [ ] **OBS-03**: Custom Grafana dashboards
+  - Real-time connection metrics
+  - Rate limiting visualization
+  - Device health overview
+
+### API Enhancements
+
+- [ ] **API-01**: User registration endpoint
+  - Email verification flow
+  - CAPTCHA integration
+  - Profile management
+
+- [ ] **API-02**: Room management API
+  - Create/delete rooms
+  - Room permissions
+  - Member management
+
+- [ ] **API-03**: Message history API
+  - Paginated history retrieval
+  - Search functionality
+  - Message retention policies
 
 ---
 
@@ -183,10 +154,55 @@ Phase 3 (Gateway WSS)          Phase 4 (ESP32 Firmware)
 
 | Priority | Category | Task ID | Description |
 |----------|----------|---------|-------------|
-| 🔴 Critical | Gateway | Phase 3 | Sec-WebSocket-Protocol auth |
-| 🟠 High | IoT | EF-IOT-03 | End-to-end testing |
-| 🟠 High | IoT | EF-IOT-04 | Device registration |
-| 🟡 Medium | Security | EF-SEC-01 | Rate limiting |
-| 🟡 Medium | Observability | EF-OBS-01 | Structured logging |
-| 🟢 Low | ML | EF-ML-01 | Health checks |
-| 🟢 Low | IoT | EF-IOT-05 | OTA updates |
+| 🔴 Critical | Testing | TEST-01 | Integration test suite |
+| 🔴 Critical | Infra | INFRA-01 | TLS termination |
+| 🟠 High | Security | SEC-01 | Account lockout |
+| 🟠 High | IoT | IOT-01 | OTA updates |
+| 🟡 Medium | Security | SEC-04 | Two-factor auth |
+| 🟡 Medium | Observability | OBS-01 | Distributed tracing |
+| 🟢 Low | ML | ML-03 | Binary protocol |
+| 🟢 Low | API | API-02 | Room management |
+
+---
+
+## Environment Variables Reference
+
+### Auth API
+```bash
+AUTH_BIND_ADDR=0.0.0.0:9200
+AUTH_DB_PATH=/opt/unhidra/auth.db
+JWT_SECRET=your-secret-key
+RATE_LIMIT_LOGIN_PER_MINUTE=10
+RATE_LIMIT_REGISTER_PER_HOUR=5
+```
+
+### Gateway Service
+```bash
+GATEWAY_PORT=9000
+JWT_SECRET=your-secret-key
+ALLOWED_ORIGINS=https://app.unhidra.io
+RATE_LIMIT_IP_PER_MINUTE=60
+RATE_LIMIT_USER_PER_MINUTE=30
+RATE_LIMIT_MESSAGES_PER_SEC=50
+```
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Run all tests
+cargo test --workspace
+
+# Build release binaries
+cargo build --release
+
+# Start services with Docker
+docker-compose up -d
+
+# View logs
+docker-compose logs -f gateway-service
+
+# Run integration tests
+cargo test --test integration_tests -- --ignored
+```

@@ -2,11 +2,43 @@
 resolver = "2"
 
 members = [
+    # Core services
     "auth-api",
     "gateway-service",
     "chat-service",
     "presence-service",
     "history-service",
     "bot-service",
-    "uchat-proto"
+    "event-hub-service",
+    "auth-service",
+
+    # Shared libraries
+    "jwt-common",
+    "uchat-proto",
+    "proto",
+    "core",
+    "storage",
+    "net",
+
+    # ML infrastructure
+    "ml-bridge",
+
+    # Applications
+    "client",
+    "bot",
+    "server",
+    "unhidra-gui",
+    "unhidra-vcs-gui",
+    "startup-check",
 ]
+
+# Shared dependency versions for consistency
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "2.0"
+chrono = "0.4"

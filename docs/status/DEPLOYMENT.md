@@ -9,12 +9,13 @@ This guide covers deployment of Unhidra backend services and ESP32 firmware.
 1. [System Overview](#system-overview)
 2. [Features & Capabilities](#features--capabilities)
 3. [Prerequisites](#prerequisites)
-4. [Backend Deployment](#backend-deployment)
-5. [ESP32 Firmware Deployment](#esp32-firmware-deployment)
-6. [Environment Configuration](#environment-configuration)
-7. [Security Checklist](#security-checklist)
-8. [Monitoring & Operations](#monitoring--operations)
-9. [Troubleshooting](#troubleshooting)
+4. [Docker Deployment (Recommended)](#docker-deployment-recommended)
+5. [Backend Deployment](#backend-deployment)
+6. [ESP32 Firmware Deployment](#esp32-firmware-deployment)
+7. [Environment Configuration](#environment-configuration)
+8. [Security Checklist](#security-checklist)
+9. [Monitoring & Operations](#monitoring--operations)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -104,6 +105,15 @@ Unhidra is a secure IoT communication platform with the following components:
 | **Auto-Reconnect** | Survives network disruptions |
 | **Multi-Chip Support** | ESP32, S2, S3, C3, C6 |
 
+### New in Phase 5
+
+| Feature | Description |
+|---------|-------------|
+| **Rate Limiting** | Per-IP and per-user connection limits |
+| **Device Registration** | IoT device management API |
+| **Prometheus Metrics** | Built-in metrics for monitoring |
+| **Connection Tracking** | Real-time connection metadata |
+
 ---
 
 ## Prerequisites
@@ -137,6 +147,102 @@ source ~/export-esp.sh
 
 # Install flashing tool
 cargo install espflash
+```
+
+---
+
+## Docker Deployment (Recommended)
+
+The easiest way to deploy Unhidra is using Docker Compose.
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/unhidra.git
+cd unhidra
+
+# Set environment variables
+export JWT_SECRET=$(openssl rand -base64 32)
+export GRAFANA_PASSWORD=admin
+
+# Start all services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+```
+
+### Services Started
+
+| Service | Port | Description |
+|---------|------|-------------|
+| auth-api | 9200 | Authentication API |
+| gateway-service | 9000 | WebSocket Gateway |
+| prometheus | 9090 | Metrics Collection |
+| grafana | 3001 | Metrics Visualization |
+
+### Verify Deployment
+
+```bash
+# Health check auth-api
+curl http://localhost:9200/health
+
+# Health check gateway
+curl http://localhost:9000/health
+
+# View Prometheus targets
+open http://localhost:9090/targets
+
+# View Grafana (admin/admin)
+open http://localhost:3001
+```
+
+### Docker Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Required
+JWT_SECRET=your-secure-secret-key
+
+# Optional
+GRAFANA_PASSWORD=admin
+ALLOWED_ORIGINS=https://your-frontend.com
+RATE_LIMIT_IP_PER_MINUTE=60
+RATE_LIMIT_LOGIN_PER_MINUTE=10
+```
+
+### Production Docker Deployment
+
+For production, use the following settings:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  auth-api:
+    environment:
+      - JWT_SECRET=${JWT_SECRET}  # Required!
+      - RUST_LOG=auth_api=warn
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
+
+  gateway-service:
+    environment:
+      - JWT_SECRET=${JWT_SECRET}  # Must match auth-api!
+      - ALLOWED_ORIGINS=https://app.unhidra.io
+      - RUST_LOG=gateway_service=warn
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          memory: 256M
 ```
 
 ---

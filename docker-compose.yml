@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Authentication API Service
+  auth-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.auth-api
+    ports:
+      - "9200:9200"
+    environment:
+      - AUTH_BIND_ADDR=0.0.0.0:9200
+      - AUTH_DB_PATH=/data/auth.db
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - RUST_LOG=auth_api=info,tower_http=debug
+      - RATE_LIMIT_LOGIN_PER_MINUTE=10
+      - RATE_LIMIT_REGISTER_PER_HOUR=5
+    volumes:
+      - auth-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - unhidra-net
+
+  # WebSocket Gateway Service
+  gateway-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    ports:
+      - "9000:9000"
+    environment:
+      - GATEWAY_PORT=9000
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - RUST_LOG=gateway_service=info,tower_http=debug
+      - RATE_LIMIT_IP_PER_MINUTE=60
+      - RATE_LIMIT_USER_PER_MINUTE=30
+      - RATE_LIMIT_MESSAGES_PER_SEC=50
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - unhidra-net
+    depends_on:
+      auth-api:
+        condition: service_healthy
+
+  # Chat Service
+  chat-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.chat
+    environment:
+      - RUST_LOG=chat_service=info
+    networks:
+      - unhidra-net
+    depends_on:
+      - gateway-service
+
+  # Presence Service
+  presence-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.presence
+    ports:
+      - "3002:3002"
+    environment:
+      - RUST_LOG=presence_service=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - unhidra-net
+
+  # ML Bridge (Python Worker)
+  ml-bridge:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ml-bridge
+    environment:
+      - ML_SOCKET_PATH=/tmp/unhidra_ml_infer.sock
+    volumes:
+      - ml-socket:/tmp
+    networks:
+      - unhidra-net
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - unhidra-net
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - unhidra-net
+    depends_on:
+      - prometheus
+
+networks:
+  unhidra-net:
+    driver: bridge
+
+volumes:
+  auth-data:
+  prometheus-data:
+  grafana-data:
+  ml-socket:
