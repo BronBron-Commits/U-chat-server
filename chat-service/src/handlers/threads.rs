@@ -51,9 +51,9 @@ pub struct ThreadReplyResponse {
 /// Create a new thread (reply to a message)
 pub async fn create_thread(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Json(req): Json<CreateThreadRequest>,
 ) -> Result<Json<ThreadResponse>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT claims
     let thread_id = Uuid::new_v4().to_string();
     let message_id = Uuid::new_v4().to_string();
 
@@ -64,7 +64,7 @@ pub async fn create_thread(
         WHERE channel_id = $1 AND user_id = $2
         "#,
         req.channel_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -190,10 +190,10 @@ pub async fn create_thread(
 /// List replies in a thread
 pub async fn list_thread_replies(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(thread_id): Path<String>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<ThreadReplyResponse>>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     let limit = pagination.limit.unwrap_or(50).min(100) as i64;
     let offset = pagination.offset.unwrap_or(0) as i64;
@@ -207,7 +207,7 @@ pub async fn list_thread_replies(
         WHERE t.id = $1 AND cm.user_id = $2
         "#,
         thread_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -251,9 +251,9 @@ pub async fn list_thread_replies(
 /// Get thread details
 pub async fn get_thread(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(thread_id): Path<String>,
 ) -> Result<Json<ThreadResponse>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     let thread = sqlx::query!(
         r#"
@@ -266,7 +266,7 @@ pub async fn get_thread(
         WHERE t.id = $1 AND cm.user_id = $2
         "#,
         thread_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -287,10 +287,10 @@ pub async fn get_thread(
 /// Add participant to thread
 pub async fn add_thread_participant(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(thread_id): Path<String>,
     Json(req): Json<AddParticipantRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let current_user = "system"; // TODO: Extract from JWT
 
     // Verify thread exists and current user has access
     let thread = sqlx::query!(
@@ -301,7 +301,7 @@ pub async fn add_thread_participant(
         WHERE t.id = $1 AND cm.user_id = $2
         "#,
         thread_id,
-        current_user
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -361,9 +361,9 @@ pub async fn add_thread_participant(
 /// Mark thread as read
 pub async fn mark_thread_read(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(thread_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     // Update last_read_at for participant
     sqlx::query!(
@@ -373,7 +373,7 @@ pub async fn mark_thread_read(
         WHERE thread_id = $1 AND user_id = $2
         "#,
         thread_id,
-        user_id
+        &user_id
     )
     .execute(&pool)
     .await

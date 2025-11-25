@@ -32,6 +32,7 @@ members = [
     "unhidra-gui",
     "unhidra-vcs-gui",
     "startup-check",
+    "tauri-client",
 ]
 
 # Shared dependency versions for consistency

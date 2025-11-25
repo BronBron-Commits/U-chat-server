@@ -60,10 +60,10 @@ pub struct ChannelResponse {
 /// Create a new channel
 pub async fn create_channel(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(creator_id): crate::auth::AuthUser,
     Json(req): Json<CreateChannelRequest>,
 ) -> Result<Json<ChannelResponse>, ApiError> {
     let channel_id = Uuid::new_v4().to_string();
-    let creator_id = "system"; // TODO: Extract from JWT claims
 
     let channel = sqlx::query!(
         r#"
@@ -89,7 +89,7 @@ pub async fn create_channel(
         VALUES ($1, $2, 'admin')
         "#,
         channel_id,
-        creator_id
+        &creator_id
     )
     .execute(&pool)
     .await
@@ -110,10 +110,9 @@ pub async fn create_channel(
 /// List channels for current user
 pub async fn list_channels(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<ChannelResponse>>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
-
     let limit = pagination.limit.unwrap_or(50).min(100) as i64;
     let offset = pagination.offset.unwrap_or(0) as i64;
 
@@ -138,7 +137,7 @@ pub async fn list_channels(
         ORDER BY c.created_at DESC
         LIMIT $2 OFFSET $3
         "#,
-        user_id,
+        &user_id,
         limit,
         offset
     )
@@ -166,10 +165,9 @@ pub async fn list_channels(
 /// Get channel by ID
 pub async fn get_channel(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(channel_id): Path<String>,
 ) -> Result<Json<ChannelResponse>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
-
     // Verify user is a member
     let _membership = sqlx::query!(
         r#"
@@ -177,7 +175,7 @@ pub async fn get_channel(
         WHERE channel_id = $1 AND user_id = $2
         "#,
         channel_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -224,11 +222,10 @@ pub struct AddMemberRequest {
 /// Add member to channel
 pub async fn add_member(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(current_user): crate::auth::AuthUser,
     Path(channel_id): Path<String>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let current_user = "system"; // TODO: Extract from JWT
-
     // Verify current user is admin
     let membership = sqlx::query!(
         r#"
@@ -236,7 +233,7 @@ pub async fn add_member(
         WHERE channel_id = $1 AND user_id = $2
         "#,
         channel_id,
-        current_user
+        &current_user
     )
     .fetch_optional(&pool)
     .await
@@ -270,10 +267,9 @@ pub async fn add_member(
 /// Mark channel as read
 pub async fn mark_as_read(
     State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(channel_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
-
     // Get latest message ID
     let latest_msg = sqlx::query!(
         r#"
@@ -299,7 +295,7 @@ pub async fn mark_as_read(
                 last_read_at = datetime('now', 'utc')
             "#,
             channel_id,
-            user_id,
+            &user_id,
             msg.id
         )
         .execute(&pool)

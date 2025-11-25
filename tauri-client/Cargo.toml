@@ -1,0 +1,28 @@
+[package]
+name = "unhidra-tauri-client"
+version = "0.3.0"
+edition = "2021"
+description = "Unhidra desktop client built with Tauri"
+authors = ["Unhidra Team"]
+license = "MIT"
+
+[dependencies]
+tauri = { version = "1.5", features = ["api-all"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+
+# Internal crates
+e2ee = { path = "../e2ee" }
+jwt-common = { path = "../jwt-common" }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri = { version = "1.5", features = ["api-all", "system-tray"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[lints]
+workspace = true
