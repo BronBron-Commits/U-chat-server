@@ -16,6 +16,10 @@ mod ws_handler;
 mod rate_limiter;
 mod metrics;
 mod connection;
+mod mqtt_bridge;
+
+#[cfg(feature = "mqtt-bridge")]
+mod mqtt_bridge_impl;
 
 use axum::{
     extract::State,
@@ -24,6 +28,7 @@ use axum::{
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -69,6 +74,42 @@ async fn main() {
 
     // Initialize metrics
     crate::metrics::init_metrics();
+
+    // Initialize MQTT bridge if enabled
+    #[cfg(feature = "mqtt-bridge")]
+    let mqtt_bridge = {
+        let bridge_enabled = std::env::var("MQTT_BRIDGE_ENABLED")
+            .map(|v| v.to_lowercase() == "true")
+            .unwrap_or(false);
+
+        if bridge_enabled {
+            info!("MQTT bridge enabled, starting...");
+            let config = mqtt_bridge::MqttBridgeConfig::from_env();
+            let bridge = Arc::new(mqtt_bridge::MqttBridge::new(config));
+
+            // Start background task for stale device cleanup
+            let bridge_clone = Arc::clone(&bridge);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    bridge_clone.check_stale_devices(300); // 5 minute timeout
+                }
+            });
+
+            Some(bridge)
+        } else {
+            info!("MQTT bridge disabled");
+            None
+        }
+    };
+
+    #[cfg(not(feature = "mqtt-bridge"))]
+    let mqtt_bridge: Option<Arc<mqtt_bridge::MqttBridge>> = None;
+
+    if mqtt_bridge.is_none() {
+        info!("MQTT bridge feature not available or disabled");
+    }
 
     // Build CORS layer
     let cors = if allowed_origins.is_empty() {

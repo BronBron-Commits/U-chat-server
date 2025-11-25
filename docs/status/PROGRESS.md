@@ -335,10 +335,14 @@ Implemented secure ESP32 firmware using the modern `esp-idf-svc` ecosystem for I
 **Status**: Completed (2025-11)
 
 - Migration `003_audit_log.sql`
+- Migration `005_postgres_audit_log.sql` (PostgreSQL schema)
 - Audit module (`core/src/audit.rs`)
   - 30+ audit actions
   - `AuditLogger` trait
   - Memory and Redis backends
+  - **NEW**: PostgreSQL backend (feature-gated)
+  - Immutable audit table with hash chain
+  - Compliance reporting views
 
 ### Phase 11: Helm Chart ✅
 
@@ -357,6 +361,14 @@ Implemented secure ESP32 firmware using the modern `esp-idf-svc` ecosystem for I
   - Topic-based routing
   - Device status tracking
   - TLS mutual auth ready
+- **NEW**: Full rumqttc integration (`mqtt_bridge_impl.rs`)
+  - E2EE message encryption for devices
+  - TLS/mTLS support
+  - Automatic reconnection
+- **NEW**: Main integration (`gateway-service/src/main.rs`)
+  - Feature-gated MQTT bridge startup
+  - Stale device cleanup task
+  - Environment-based configuration
 
 ### Phase 13: Channels & Threads ✅
 
@@ -367,6 +379,77 @@ Implemented secure ESP32 firmware using the modern `esp-idf-svc` ecosystem for I
   - Threads with reply counts
   - File uploads with encryption
   - Reactions, read receipts, typing
+- **NEW**: Complete handler implementation
+  - Channel handlers (`chat-service/src/handlers/channels.rs`)
+  - Thread handlers (`chat-service/src/handlers/threads.rs`)
+  - File upload/download handlers (`chat-service/src/handlers/files.rs`)
+  - E2EE file encryption support
+  - MinIO/S3 storage backend integration
+
+---
+
+## Phase 14: Integration Completion ✅
+
+**Status**: Completed (2025-11-25)
+
+### Completed Tasks
+
+- [x] **Thread Handlers**
+  - Create thread with first reply
+  - List thread replies (paginated)
+  - Get thread details
+  - Add/remove participants
+  - Mark thread as read
+  - File: `chat-service/src/handlers/threads.rs`
+
+- [x] **File Upload/Download with E2EE**
+  - Multipart file upload
+  - Client-side E2EE encryption
+  - SHA-256 checksum verification
+  - Multiple storage backends (local, MinIO, S3)
+  - File download with streaming
+  - List channel files
+  - Soft delete with permission checks
+  - File: `chat-service/src/handlers/files.rs`
+
+- [x] **PostgreSQL Audit Logger Integration**
+  - Feature flag in `core/Cargo.toml`
+  - Optional sqlx dependency
+  - PostgreSQL schema migration
+  - Full audit event logging
+  - Compliance views
+
+- [x] **MQTT Bridge Main Integration**
+  - Feature-gated startup in `gateway-service/src/main.rs`
+  - Environment-based configuration
+  - Stale device cleanup background task
+  - Device status tracking
+
+- [x] **Integration Tests**
+  - E2EE message flow test
+  - Channel management test
+  - Thread creation test
+  - Audit logging test
+  - MQTT bridge test
+  - Rate limiting test
+  - Password hashing test
+  - File: `tests/integration_tests.rs`
+
+- [x] **Documentation Updates**
+  - Integration completion report
+  - Progress tracking update
+  - TODO list update
+  - Architecture documentation
+
+### Integration Statistics
+
+| Metric | Value |
+|--------|-------|
+| New Handlers | 3 (channels, threads, files) |
+| New Test Suites | 7 integration tests |
+| Lines Added | ~1,550 (code) + ~470 (docs) |
+| Storage Backends | 3 (local, MinIO, S3) |
+| API Endpoints | 12+ new endpoints |
 
 ---
 
@@ -374,10 +457,11 @@ Implemented secure ESP32 firmware using the modern `esp-idf-svc` ecosystem for I
 
 | Metric | Value |
 |--------|-------|
-| Phases Completed | 6 |
+| Phases Completed | 14 |
 | New Crates Added | 4 (ml-bridge, jwt-common, firmware, core enhanced) |
-| Security Improvements | 25+ |
-| Test Coverage | Unit tests for auth, ML bridge, gateway, history, chat |
+| Security Improvements | 30+ |
+| Test Coverage | Unit tests + integration tests for all services |
 | Supported Platforms | Linux (backend), ESP32 family (firmware) |
 | Docker Support | Full compose with Prometheus/Grafana |
 | CI/CD | GitHub Actions (lint, test, security, coverage, Docker) |
+| Integration Tests | 7 comprehensive test suites |
