@@ -109,9 +109,9 @@ pub struct FileListResponse {
 /// - `encrypted`: Boolean flag (should be "true" for E2EE)
 pub async fn upload_file(
     State((pool, config)): State<(PgPool, FileStorageConfig)>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     mut multipart: Multipart,
 ) -> Result<Json<FileUploadResponse>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
     let file_id = Uuid::new_v4().to_string();
 
     let mut file_data: Option<Bytes> = None;
@@ -189,7 +189,7 @@ pub async fn upload_file(
         WHERE channel_id = $1 AND user_id = $2
         "#,
         channel_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -237,7 +237,7 @@ pub async fn upload_file(
         file_id,
         message_id,
         channel_id,
-        user_id,
+        &user_id,
         filename,
         original_filename,
         file_data.len() as i64,
@@ -267,9 +267,9 @@ pub async fn upload_file(
 /// Download file
 pub async fn download_file(
     State((pool, config)): State<(PgPool, FileStorageConfig)>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(file_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     // Fetch file metadata
     let file = sqlx::query!(
@@ -283,7 +283,7 @@ pub async fn download_file(
         WHERE f.id = $1 AND cm.user_id = $2 AND f.deleted_at IS NULL
         "#,
         file_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -323,10 +323,10 @@ pub async fn download_file(
 /// List files in a channel
 pub async fn list_channel_files(
     State((pool, _config)): State<(PgPool, FileStorageConfig)>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(channel_id): Path<String>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<FileListResponse>, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     let limit = pagination.limit.unwrap_or(50).min(100) as i64;
     let offset = pagination.offset.unwrap_or(0) as i64;
@@ -338,7 +338,7 @@ pub async fn list_channel_files(
         WHERE channel_id = $1 AND user_id = $2
         "#,
         channel_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -399,9 +399,9 @@ pub async fn list_channel_files(
 /// Delete file (soft delete)
 pub async fn delete_file(
     State((pool, _config)): State<(PgPool, FileStorageConfig)>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Path(file_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let user_id = "system"; // TODO: Extract from JWT
 
     // Verify user is the uploader or channel admin
     let file = sqlx::query!(
@@ -412,7 +412,7 @@ pub async fn delete_file(
         WHERE f.id = $1 AND cm.user_id = $2 AND f.deleted_at IS NULL
         "#,
         file_id,
-        user_id
+        &user_id
     )
     .fetch_optional(&pool)
     .await
@@ -420,7 +420,7 @@ pub async fn delete_file(
     .ok_or(ApiError::NotFound("File not found".to_string()))?;
 
     // Check permissions
-    if file.uploader_id != user_id
+    if file.uploader_id != &user_id
         && file.role != "admin"
         && file.role != "owner"
     {

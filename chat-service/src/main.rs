@@ -6,21 +6,22 @@
 //! - Message persistence with SQLite
 //! - User membership management
 
+mod auth;
 mod db;
 mod handlers;
 mod models;
 mod state;
 
 use axum::{
-    routing::{delete, get, post, put},
-    Router,
+    http::StatusCode,
+    routing::{delete, get, post},
+    Json, Router,
 };
-use sqlx::sqlite::SqlitePoolOptions;
+use serde_json::{json, Value};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::sync::Arc;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-use crate::state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,49 +36,49 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Chat Service starting...");
 
-    // Get database path from env or use default
-    let db_path = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:chat.db?mode=rwc".to_string());
+    // Initialize JWT token service
+    auth::init_token_service();
 
-    // Create database connection pool
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(&db_path)
+    // Get database URL from env
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://unhidra:password@localhost:5432/unhidra".to_string());
+
+    // Create database connection pool (PostgreSQL)
+    let pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&database_url)
         .await?;
 
-    // Run migrations
-    db::run_migrations(&pool).await?;
+    tracing::info!("Connected to PostgreSQL database");
 
-    let state = Arc::new(AppState::new(pool));
+    // Build API router with authentication-required endpoints
+    let api_router = Router::new()
+        // Channel routes
+        .route("/channels", post(handlers::channels::create_channel))
+        .route("/channels", get(handlers::channels::list_channels))
+        .route("/channels/:channel_id", get(handlers::channels::get_channel))
+        .route("/channels/:channel_id/members", post(handlers::channels::add_member))
+        .route("/channels/:channel_id/read", post(handlers::channels::mark_as_read))
+        // Thread routes
+        .route("/threads", post(handlers::threads::create_thread))
+        .route("/threads/:thread_id", get(handlers::threads::get_thread))
+        .route("/threads/:thread_id/replies", get(handlers::threads::list_thread_replies))
+        .route("/threads/:thread_id/participants", post(handlers::threads::add_thread_participant))
+        .route("/threads/:thread_id/read", post(handlers::threads::mark_thread_read))
+        // File routes
+        .route("/files", post(handlers::files::upload_file))
+        .route("/files/:file_id", get(handlers::files::download_file))
+        .route("/files/:file_id", delete(handlers::files::delete_file))
+        .route("/channels/:channel_id/files", get(handlers::files::list_channel_files))
+        .with_state(pool.clone());
 
-    // Build router
+    // Main app with health check (no auth required)
     let app = Router::new()
-        // Group endpoints
-        .route("/groups", post(handlers::create_group))
-        .route("/groups", get(handlers::list_groups))
-        .route("/groups/{group_id}", get(handlers::get_group))
-        .route("/groups/{group_id}", put(handlers::update_group))
-        .route("/groups/{group_id}", delete(handlers::delete_group))
-        // Group membership
-        .route("/groups/{group_id}/members", get(handlers::list_members))
-        .route("/groups/{group_id}/members", post(handlers::add_member))
-        .route(
-            "/groups/{group_id}/members/{user_id}",
-            delete(handlers::remove_member),
-        )
-        .route("/groups/{group_id}/join", post(handlers::join_group))
-        .route("/groups/{group_id}/leave", post(handlers::leave_group))
-        // Messages
-        .route("/groups/{group_id}/messages", post(handlers::send_message))
-        .route("/groups/{group_id}/messages", get(handlers::get_messages))
-        // User's groups
-        .route("/users/{user_id}/groups", get(handlers::get_user_groups))
-        // Health endpoint
-        .route("/health", get(handlers::health_check))
+        .route("/health", get(health_check))
+        .nest("/api", api_router)
         // Add middleware
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
-        .with_state(state);
+        .layer(CorsLayer::permissive());
 
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port: u16 = std::env::var("PORT")
@@ -92,4 +93,16 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Health check endpoint
+async fn health_check() -> (StatusCode, Json<Value>) {
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status": "healthy",
+            "service": "chat-service",
+            "version": env!("CARGO_PKG_VERSION")
+        })),
+    )
 }

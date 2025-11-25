@@ -13,6 +13,130 @@
 | 2024-11 | Phase 4 | ESP32 Firmware & WSS Integration | ✅ Complete |
 | 2024-11 | Phase 5 | Rate Limiting & Device Registration | ✅ Complete |
 | 2025-11 | Phase 6 | Codebase Enhancement & CI/CD | ✅ Complete |
+| 2025-11-25 | Phase 7 | Advanced Features & Infrastructure | ✅ Complete |
+
+---
+
+## Phase 7: Advanced Features & Infrastructure
+
+**Status**: ✅ Completed
+**Date**: November 25, 2025
+
+### Overview
+
+Comprehensive enhancement implementing JWT authentication across all handlers, PostgreSQL integration, MinIO file storage, MQTT broker integration, integration testing, and Tauri desktop client foundation.
+
+### Completed Tasks
+
+- [x] **Documentation Enhancement**
+  - Created comprehensive user manual (`docs/user-manual.md`)
+  - Updated README.md with correct clone URL
+  - Added setup, usage, admin, and troubleshooting sections
+  - Documented API endpoints and configuration
+
+- [x] **JWT Authentication Integration**
+  - Created unified auth module (`chat-service/src/auth.rs`)
+  - Implemented `AuthUser` extractor for automatic JWT validation
+  - Updated all handlers (channels, threads, files) to use JWT authentication
+  - Removed hardcoded "system" user IDs
+  - Added `OptionalAuthUser` for endpoints that don't require authentication
+  - Files: `chat-service/src/auth.rs`, `chat-service/src/handlers/{channels,threads,files}.rs`
+
+- [x] **API Routing Restructure**
+  - Migrated from SQLite to PostgreSQL
+  - Created sub-routers for channels, threads, and files
+  - Mounted all API routes under `/api` prefix
+  - Added health check endpoint (no auth required)
+  - Updated service to use connection pooling
+  - Files: `chat-service/src/main.rs`, `chat-service/Cargo.toml`
+
+- [x] **PostgreSQL Integration**
+  - Added PostgreSQL feature to chat-service dependencies
+  - Created comprehensive integration test suite
+  - Tests for channels, threads, audit log, and file metadata
+  - Environment-based test database configuration
+  - Files: `chat-service/tests/integration.rs`
+
+- [x] **Infrastructure Setup (Docker Compose)**
+  - Added PostgreSQL 15 with health checks
+  - Added Redis 7 for caching and event streaming
+  - Added MinIO for S3-compatible file storage
+  - Added Eclipse Mosquitto MQTT broker
+  - Created mosquitto.conf with WebSocket support
+  - All services configured with proper health checks and volumes
+  - Files: `docker-compose.yml`, `mosquitto.conf`
+
+- [x] **Tauri Desktop Client Foundation**
+  - Created tauri-client package structure
+  - Basic Tauri application with command handlers
+  - Placeholder implementations for connect, send_message, get_channels
+  - Integration with e2ee and jwt-common crates
+  - Files: `tauri-client/Cargo.toml`, `tauri-client/src/main.rs`
+
+- [x] **CI/CD Enhancement**
+  - Enhanced existing release workflow with Docker support
+  - Multi-platform binary builds (Linux, macOS, Windows)
+  - Automated GitHub releases with artifacts
+  - Docker image builds and GHCR publishing
+  - Files: `.github/workflows/release.yml`
+
+- [x] **Workspace Updates**
+  - Added tauri-client to workspace members
+  - Added axum-extra and async-trait dependencies
+  - Updated PostgreSQL feature flags
+  - Files: `Cargo.toml`, `chat-service/Cargo.toml`
+
+### Technical Highlights
+
+#### JWT Authentication Pattern
+
+All authenticated endpoints now use the `AuthUser` extractor:
+
+```rust
+pub async fn create_channel(
+    State(pool): State<PgPool>,
+    crate::auth::AuthUser(user_id): crate::auth::AuthUser,  // Auto-validates JWT
+    Json(req): Json<CreateChannelRequest>,
+) -> Result<Json<ChannelResponse>, ApiError> {
+    // user_id is now the authenticated user's ID from JWT
+}
+```
+
+#### PostgreSQL Integration
+
+Migration from SQLite to PostgreSQL for production readiness:
+- Connection pooling with configurable max connections
+- Environment-based configuration
+- Health checks in Docker Compose
+- Integration test suite with isolated test database
+
+#### Infrastructure Services
+
+All core infrastructure now runs via Docker Compose:
+- **PostgreSQL**: Persistent data storage with migrations
+- **Redis**: Caching and Redis Streams for event distribution
+- **MinIO**: S3-compatible object storage for files
+- **Mosquitto**: MQTT broker with WebSocket support for IoT devices
+
+### Files Changed
+
+- Documentation: `docs/user-manual.md` (new)
+- Auth: `chat-service/src/auth.rs` (new)
+- Handlers: `chat-service/src/handlers/{channels,threads,files}.rs` (updated)
+- Main: `chat-service/src/main.rs` (restructured)
+- Tests: `chat-service/tests/integration.rs` (new)
+- Docker: `docker-compose.yml`, `mosquitto.conf` (enhanced)
+- Tauri: `tauri-client/*` (new)
+- Workspace: `Cargo.toml`, `chat-service/Cargo.toml` (updated)
+
+### Next Steps
+
+- Implement E2EE file upload in handlers/files.rs
+- Add MQTT bridge service with reconnect logic
+- Expand integration test coverage
+- Complete Tauri client implementation
+- Add WebSocket support to Tauri client
+- Implement Redis Streams integration
 
 ---
 
