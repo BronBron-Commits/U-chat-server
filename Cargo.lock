@@ -565,7 +565,6 @@ dependencies = [
  "axum-extra 0.9.6",
  "base64 0.22.1",
  "chrono",
- "core",
  "dashmap",
  "governor",
  "jwt-common",
@@ -588,6 +587,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uchat-proto",
+ "unhidra-core",
  "url",
  "uuid",
  "webauthn-rs",
@@ -689,6 +689,7 @@ dependencies = [
  "matchit 0.8.4",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
@@ -1136,13 +1137,14 @@ dependencies = [
  "axum 0.8.7",
  "axum-extra 0.10.3",
  "chrono",
- "core",
  "dashmap",
+ "e2ee",
  "futures-util",
  "jwt-common",
  "proto",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "tempfile",
  "thiserror 2.0.17",
@@ -1153,6 +1155,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "unhidra-core",
  "uuid",
 ]
 
@@ -1341,25 +1344,6 @@ dependencies = [
  "percent-encoding",
  "time",
  "version_check",
-]
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "chrono",
- "once_cell",
- "serde",
- "serde_json",
- "sqlx",
- "thiserror 2.0.17",
- "tokio",
- "tokio-test",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -2341,6 +2325,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uchat-proto",
+ "uuid",
 ]
 
 [[package]]
@@ -2740,7 +2725,6 @@ dependencies = [
  "anyhow",
  "axum 0.8.7",
  "chrono",
- "core",
  "jwt-common",
  "proto",
  "reqwest 0.12.24",
@@ -2756,6 +2740,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "unhidra-core",
  "uuid",
 ]
 
@@ -6560,6 +6545,25 @@ dependencies = [
  "memoffset 0.9.1",
  "tempfile",
  "winapi",
+]
+
+[[package]]
+name = "unhidra-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-test",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

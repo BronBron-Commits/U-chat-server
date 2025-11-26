@@ -19,7 +19,7 @@ use sqlx::PgPool;
 use std::io::Write;
 use uuid::Uuid;
 
-use core::{
+use unhidra_core::{
     audit::{self, AuditAction, AuditEvent},
     error::ApiError,
 };
@@ -128,7 +128,7 @@ pub async fn upload_file(
 
     // Parse multipart form
     while let Some(field) = multipart.next_field().await.map_err(|e| {
-        ApiError::ValidationError(format!("Invalid multipart data: {}", e))
+        ApiError::Validation(format!("Invalid multipart data: {}", e))
     })? {
         let name = field.name().unwrap_or("").to_string();
 
@@ -141,27 +141,27 @@ pub async fn upload_file(
                     .unwrap_or("application/octet-stream")
                     .to_string();
                 file_data = Some(field.bytes().await.map_err(|e| {
-                    ApiError::ValidationError(format!("Failed to read file: {}", e))
+                    ApiError::Validation(format!("Failed to read file: {}", e))
                 })?);
             }
             "channel_id" => {
                 channel_id = Some(field.text().await.map_err(|e| {
-                    ApiError::ValidationError(format!("Invalid channel_id: {}", e))
+                    ApiError::Validation(format!("Invalid channel_id: {}", e))
                 })?);
             }
             "message_id" => {
                 message_id = Some(field.text().await.map_err(|e| {
-                    ApiError::ValidationError(format!("Invalid message_id: {}", e))
+                    ApiError::Validation(format!("Invalid message_id: {}", e))
                 })?);
             }
             "encryption_key_id" => {
                 encryption_key_id = Some(field.text().await.map_err(|e| {
-                    ApiError::ValidationError(format!("Invalid encryption_key_id: {}", e))
+                    ApiError::Validation(format!("Invalid encryption_key_id: {}", e))
                 })?);
             }
             "encrypted" => {
                 let value = field.text().await.map_err(|e| {
-                    ApiError::ValidationError(format!("Invalid encrypted flag: {}", e))
+                    ApiError::Validation(format!("Invalid encrypted flag: {}", e))
                 })?;
                 encrypted = value == "true" || value == "1";
             }
@@ -170,16 +170,16 @@ pub async fn upload_file(
     }
 
     let file_data = file_data.ok_or_else(|| {
-        ApiError::ValidationError("No file provided".to_string())
+        ApiError::Validation("No file provided".to_string())
     })?;
 
     let channel_id = channel_id.ok_or_else(|| {
-        ApiError::ValidationError("channel_id is required".to_string())
+        ApiError::Validation("channel_id is required".to_string())
     })?;
 
     // Validate file size
     if file_data.len() > config.max_file_size {
-        return Err(ApiError::ValidationError(format!(
+        return Err(ApiError::Validation(format!(
             "File too large: {} bytes (max: {})",
             file_data.len(),
             config.max_file_size
@@ -197,7 +197,7 @@ pub async fn upload_file(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::Forbidden("Not a channel member".to_string()))?;
 
     // Calculate checksum
@@ -218,7 +218,7 @@ pub async fn upload_file(
             store_s3_file(&config, &filename, &file_data, &mime_type).await?
         }
         _ => {
-            return Err(ApiError::InternalError(format!(
+            return Err(ApiError::Internal(format!(
                 "Unsupported storage backend: {}",
                 config.backend
             )));
@@ -254,7 +254,7 @@ pub async fn upload_file(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Audit log file upload
     let audit_event = AuditEvent::new(&user_id, AuditAction::DataModified)
@@ -301,7 +301,7 @@ pub async fn download_file(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("File not found or access denied".to_string()))?;
 
     // Read file data from storage
@@ -314,7 +314,7 @@ pub async fn download_file(
             read_s3_file(&config, &file.storage_path).await?
         }
         _ => {
-            return Err(ApiError::InternalError(format!(
+            return Err(ApiError::Internal(format!(
                 "Unsupported storage backend: {}",
                 file.storage_backend
             )));
@@ -356,7 +356,7 @@ pub async fn list_channel_files(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::Forbidden("Not a channel member".to_string()))?;
 
     // Get total count
@@ -370,7 +370,7 @@ pub async fn list_channel_files(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Fetch files
     let files = sqlx::query!(
@@ -388,7 +388,7 @@ pub async fn list_channel_files(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let files = files
         .into_iter()
@@ -430,7 +430,7 @@ pub async fn delete_file(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("File not found".to_string()))?;
 
     // Check permissions
@@ -454,7 +454,7 @@ pub async fn delete_file(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Audit log file deletion
     let audit_event = AuditEvent::new(&user_id, AuditAction::DataDeleted)
@@ -477,16 +477,16 @@ async fn store_local_file(
     data: &[u8],
 ) -> Result<String, ApiError> {
     let base_path = config.local_path.as_ref()
-        .ok_or_else(|| ApiError::InternalError("Local storage path not configured".to_string()))?;
+        .ok_or_else(|| ApiError::Internal("Local storage path not configured".to_string()))?;
 
     // Create directory if it doesn't exist
     tokio::fs::create_dir_all(base_path).await
-        .map_err(|e| ApiError::InternalError(format!("Failed to create storage directory: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to create storage directory: {}", e)))?;
 
     let file_path = std::path::Path::new(base_path).join(filename);
 
     tokio::fs::write(&file_path, data).await
-        .map_err(|e| ApiError::InternalError(format!("Failed to write file: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to write file: {}", e)))?;
 
     Ok(file_path.to_string_lossy().to_string())
 }
@@ -494,7 +494,7 @@ async fn store_local_file(
 /// Read file from local filesystem
 async fn read_local_file(path: &str) -> Result<Vec<u8>, ApiError> {
     tokio::fs::read(path).await
-        .map_err(|e| ApiError::InternalError(format!("Failed to read file: {}", e)))
+        .map_err(|e| ApiError::Internal(format!("Failed to read file: {}", e)))
 }
 
 /// Store file to S3/MinIO
@@ -509,7 +509,7 @@ async fn store_s3_file(
 
     bucket.put_object_with_content_type(filename, data, content_type)
         .await
-        .map_err(|e| ApiError::InternalError(format!("S3 upload failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("S3 upload failed: {}", e)))?;
 
     Ok(filename.to_string())
 }
@@ -524,7 +524,7 @@ async fn read_s3_file(
 
     let response = bucket.get_object(path)
         .await
-        .map_err(|e| ApiError::InternalError(format!("S3 download failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("S3 download failed: {}", e)))?;
 
     Ok(response.bytes().to_vec())
 }
@@ -533,7 +533,7 @@ async fn read_s3_file(
 #[cfg(feature = "minio")]
 fn create_s3_bucket(config: &FileStorageConfig) -> Result<Bucket, ApiError> {
     let bucket_name = config.bucket.as_ref()
-        .ok_or_else(|| ApiError::InternalError("Bucket name not configured".to_string()))?;
+        .ok_or_else(|| ApiError::Internal("Bucket name not configured".to_string()))?;
 
     let region = if let Some(endpoint) = &config.endpoint {
         Region::Custom {
@@ -542,7 +542,7 @@ fn create_s3_bucket(config: &FileStorageConfig) -> Result<Bucket, ApiError> {
         }
     } else {
         Region::from_str(&config.region.as_ref().unwrap_or(&"us-east-1".to_string()))
-            .map_err(|e| ApiError::InternalError(format!("Invalid region: {}", e)))?
+            .map_err(|e| ApiError::Internal(format!("Invalid region: {}", e)))?
     };
 
     let credentials = Credentials::new(
@@ -551,10 +551,10 @@ fn create_s3_bucket(config: &FileStorageConfig) -> Result<Bucket, ApiError> {
         None,
         None,
         None,
-    ).map_err(|e| ApiError::InternalError(format!("Invalid credentials: {}", e)))?;
+    ).map_err(|e| ApiError::Internal(format!("Invalid credentials: {}", e)))?;
 
     Bucket::new(bucket_name, region, credentials)
-        .map_err(|e| ApiError::InternalError(format!("Failed to create bucket: {}", e)))
+        .map_err(|e| ApiError::Internal(format!("Failed to create bucket: {}", e)))
 }
 
 /// Sanitize filename to prevent path traversal
@@ -589,12 +589,12 @@ pub fn encrypt_file_data(
 ) -> Result<Vec<u8>, ApiError> {
     let encrypted = ratchet
         .encrypt(file_data)
-        .map_err(|e| ApiError::InternalError(format!("File encryption failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("File encryption failed: {}", e)))?;
 
     // Serialize encrypted message to JSON bytes
     let json = encrypted
         .to_json()
-        .map_err(|e| ApiError::InternalError(format!("Failed to serialize encrypted file: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize encrypted file: {}", e)))?;
 
     Ok(json.into_bytes())
 }
@@ -608,15 +608,15 @@ pub fn decrypt_file_data(
 ) -> Result<Vec<u8>, ApiError> {
     // Parse encrypted message from JSON
     let json_str = String::from_utf8(encrypted_data.to_vec())
-        .map_err(|e| ApiError::InternalError(format!("Invalid encrypted file format: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Invalid encrypted file format: {}", e)))?;
 
     let encrypted_msg = EncryptedMessage::from_json(&json_str)
-        .map_err(|e| ApiError::InternalError(format!("Failed to parse encrypted file: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to parse encrypted file: {}", e)))?;
 
     // Decrypt
     let plaintext = ratchet
         .decrypt(&encrypted_msg)
-        .map_err(|e| ApiError::InternalError(format!("File decryption failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("File decryption failed: {}", e)))?;
 
     Ok(plaintext)
 }
@@ -631,11 +631,11 @@ pub fn encrypt_file_for_device(
 ) -> Result<Vec<u8>, ApiError> {
     let encrypted = session_store
         .encrypt(device_id, file_data)
-        .map_err(|e| ApiError::InternalError(format!("File encryption for device failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("File encryption for device failed: {}", e)))?;
 
     let json = encrypted
         .to_json()
-        .map_err(|e| ApiError::InternalError(format!("Failed to serialize encrypted file: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to serialize encrypted file: {}", e)))?;
 
     Ok(json.into_bytes())
 }
@@ -649,14 +649,14 @@ pub fn decrypt_file_from_device(
     encrypted_data: &[u8],
 ) -> Result<Vec<u8>, ApiError> {
     let json_str = String::from_utf8(encrypted_data.to_vec())
-        .map_err(|e| ApiError::InternalError(format!("Invalid encrypted file format: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Invalid encrypted file format: {}", e)))?;
 
     let encrypted_msg = EncryptedMessage::from_json(&json_str)
-        .map_err(|e| ApiError::InternalError(format!("Failed to parse encrypted file: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("Failed to parse encrypted file: {}", e)))?;
 
     let plaintext = session_store
         .decrypt(device_id, &encrypted_msg)
-        .map_err(|e| ApiError::InternalError(format!("File decryption from device failed: {}", e)))?;
+        .map_err(|e| ApiError::Internal(format!("File decryption from device failed: {}", e)))?;
 
     Ok(plaintext)
 }

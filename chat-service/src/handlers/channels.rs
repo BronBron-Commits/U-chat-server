@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use core::{
+use unhidra_core::{
     audit::{self, AuditAction, AuditEvent},
     error::ApiError,
-    models::{Channel, ChannelMember, Pagination},
+    models::Pagination,
 };
 
 /// Create channel request
@@ -81,7 +81,7 @@ pub async fn create_channel(
     )
     .fetch_one(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Add creator as admin member
     sqlx::query!(
@@ -94,7 +94,7 @@ pub async fn create_channel(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Audit log channel creation
     let audit_event = AuditEvent::new(&creator_id, AuditAction::RoomCreated)
@@ -122,8 +122,8 @@ pub async fn list_channels(
     crate::auth::AuthUser(user_id): crate::auth::AuthUser,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<ChannelResponse>>, ApiError> {
-    let limit = pagination.limit.unwrap_or(50).min(100) as i64;
-    let offset = pagination.offset.unwrap_or(0) as i64;
+    let limit = pagination.per_page.min(100) as i64;
+    let offset = pagination.offset() as i64;
 
     let channels = sqlx::query!(
         r#"
@@ -152,7 +152,7 @@ pub async fn list_channels(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let response = channels
         .into_iter()
@@ -188,7 +188,7 @@ pub async fn get_channel(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::Forbidden("Not a channel member".to_string()))?;
 
     let channel = sqlx::query!(
@@ -206,7 +206,7 @@ pub async fn get_channel(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("Channel not found".to_string()))?;
 
     Ok(Json(ChannelResponse {
@@ -246,7 +246,7 @@ pub async fn add_member(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::Forbidden("Not a channel member".to_string()))?;
 
     if membership.role != "admin" && membership.role != "owner" {
@@ -268,7 +268,7 @@ pub async fn add_member(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(StatusCode::CREATED)
 }
@@ -291,7 +291,7 @@ pub async fn mark_as_read(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if let Some(msg) = latest_msg {
         sqlx::query!(
@@ -309,7 +309,7 @@ pub async fn mark_as_read(
         )
         .execute(&pool)
         .await
-        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+        .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
     Ok(StatusCode::NO_CONTENT)

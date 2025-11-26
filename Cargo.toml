@@ -15,7 +15,7 @@ members = [
     "jwt-common",
     "uchat-proto",
     "proto",
-    "core",
+    "unhidra-core",
     "net",
     "e2ee",
     "client-e2ee",
@@ -68,7 +68,7 @@ once_cell = "1.19"
 bytes = "1.5"
 
 # Core shared crate
-core = { path = "core" }
+unhidra-core = { path = "unhidra-core" }
 
 # Workspace-wide lints
 [workspace.lints.rust]

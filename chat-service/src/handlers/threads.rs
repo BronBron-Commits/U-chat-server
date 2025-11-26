@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use core::{
+use unhidra_core::{
     error::ApiError,
     models::Pagination,
 };
@@ -68,7 +68,7 @@ pub async fn create_thread(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::Forbidden("Not a channel member".to_string()))?;
 
     // Verify parent message exists
@@ -81,18 +81,18 @@ pub async fn create_thread(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("Parent message not found".to_string()))?;
 
     if parent_msg.channel_id != req.channel_id {
-        return Err(ApiError::ValidationError(
+        return Err(ApiError::Validation(
             "Message not in specified channel".to_string(),
         ));
     }
 
     // Begin transaction
     let mut tx = pool.begin().await
-        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Create or get thread
     let thread = sqlx::query!(
@@ -110,7 +110,7 @@ pub async fn create_thread(
     )
     .fetch_one(&mut *tx)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Insert reply message
     sqlx::query!(
@@ -126,7 +126,7 @@ pub async fn create_thread(
     )
     .execute(&mut *tx)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Update thread counts
     sqlx::query!(
@@ -140,7 +140,7 @@ pub async fn create_thread(
     )
     .execute(&mut *tx)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Add user as thread participant
     sqlx::query!(
@@ -154,7 +154,7 @@ pub async fn create_thread(
     )
     .execute(&mut *tx)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Update participant count
     sqlx::query!(
@@ -171,10 +171,10 @@ pub async fn create_thread(
     )
     .execute(&mut *tx)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     tx.commit().await
-        .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(ThreadResponse {
         id: thread.id,
@@ -195,8 +195,8 @@ pub async fn list_thread_replies(
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<ThreadReplyResponse>>, ApiError> {
 
-    let limit = pagination.limit.unwrap_or(50).min(100) as i64;
-    let offset = pagination.offset.unwrap_or(0) as i64;
+    let limit = pagination.per_page.min(100) as i64;
+    let offset = pagination.offset() as i64;
 
     // Verify thread exists and user has access
     let thread = sqlx::query!(
@@ -211,7 +211,7 @@ pub async fn list_thread_replies(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("Thread not found or access denied".to_string()))?;
 
     // Fetch replies
@@ -231,7 +231,7 @@ pub async fn list_thread_replies(
     )
     .fetch_all(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let response = replies
         .into_iter()
@@ -270,7 +270,7 @@ pub async fn get_thread(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("Thread not found or access denied".to_string()))?;
 
     Ok(Json(ThreadResponse {
@@ -305,7 +305,7 @@ pub async fn add_thread_participant(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or(ApiError::NotFound("Thread not found or access denied".to_string()))?;
 
     // Verify new participant is a channel member
@@ -319,8 +319,8 @@ pub async fn add_thread_participant(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?
-    .ok_or(ApiError::ValidationError(
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .ok_or(ApiError::Validation(
         "User is not a channel member".to_string(),
     ))?;
 
@@ -336,7 +336,7 @@ pub async fn add_thread_participant(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Update participant count
     sqlx::query!(
@@ -353,7 +353,7 @@ pub async fn add_thread_participant(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(StatusCode::CREATED)
 }
@@ -377,7 +377,7 @@ pub async fn mark_thread_read(
     )
     .execute(&pool)
     .await
-    .map_err(|e| ApiError::DatabaseError(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(StatusCode::NO_CONTENT)
 }

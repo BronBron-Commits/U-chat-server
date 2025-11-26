@@ -374,8 +374,8 @@ pub async fn stats_handler(State(state): State<Arc<AppState>>) -> Json<serde_jso
 use axum::extract::Path;
 use axum::response::Redirect;
 
-use crate::oidc::{OidcService, SsoProviderInfo, SsoProvidersResponse};
-use crate::webauthn_service::{WebAuthnService, CredentialInfo};
+use crate::oidc::{SsoProviderInfo, SsoProvidersResponse};
+use crate::webauthn_service::CredentialInfo;
 
 /// List available SSO providers
 pub async fn sso_providers_handler(

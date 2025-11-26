@@ -62,7 +62,7 @@ webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"]
 jwt-common = { path = "../jwt-common" }
 proto = { path = "../proto" }
 uchat-proto = { path = "../uchat-proto" }
-core = { path = "../core" }
+unhidra-core = { path = "../unhidra-core" }
 
 [dev-dependencies]
 tokio-test = "0.4"

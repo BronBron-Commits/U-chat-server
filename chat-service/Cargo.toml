@@ -9,7 +9,7 @@ description = "Chat service with group chat and real-time messaging"
 tokio = { version = "1", features = ["full"] }
 
 # Web framework
-axum = { version = "0.8", features = ["macros", "ws"] }
+axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
@@ -43,10 +43,14 @@ thiserror = "2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Cryptography
+sha2 = "0.10"
+
 # Internal crates
 proto = { path = "../proto" }
-core = { path = "../core" }
+unhidra-core = { path = "../unhidra-core" }
 jwt-common = { path = "../jwt-common" }
+e2ee = { path = "../e2ee" }
 
 [dev-dependencies]
 tokio-test = "0.4"

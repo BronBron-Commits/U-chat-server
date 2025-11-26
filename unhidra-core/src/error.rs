@@ -5,6 +5,9 @@ use thiserror::Error;
 /// Common result type alias using UnhidraError
 pub type Result<T> = std::result::Result<T, UnhidraError>;
 
+/// Type alias for API errors (for backward compatibility)
+pub type ApiError = UnhidraError;
+
 /// Common error type used across all Unhidra services
 #[derive(Debug, Error)]
 pub enum UnhidraError {
