@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use core::{
+use unhidra_core::{
     error::ApiError,
     models::Pagination,
 };

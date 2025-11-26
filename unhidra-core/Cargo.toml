@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "unhidra-core"
 version = "0.1.0"
 edition = "2021"
 description = "Shared types and utilities for Unhidra services"

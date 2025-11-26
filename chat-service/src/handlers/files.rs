@@ -19,7 +19,7 @@ use sqlx::PgPool;
 use std::io::Write;
 use uuid::Uuid;
 
-use core::{
+use unhidra_core::{
     audit::{self, AuditAction, AuditEvent},
     error::ApiError,
 };

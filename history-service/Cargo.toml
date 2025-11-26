@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Internal crates
 proto = { path = "../proto" }
-core = { path = "../core" }
+unhidra-core = { path = "../unhidra-core" }
 jwt-common = { path = "../jwt-common" }
 
 # WebSocket client

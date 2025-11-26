@@ -196,7 +196,7 @@ async fn test_thread_creation() {
 /// Test audit logging
 #[tokio::test]
 async fn test_audit_logging() {
-    use core::audit::{AuditAction, AuditEvent, AuditFilter, AuditLogger, MemoryAuditLogger};
+    use unhidra_core::audit::{AuditAction, AuditEvent, AuditFilter, AuditLogger, MemoryAuditLogger};
 
     let logger = MemoryAuditLogger::new(1000);
 
