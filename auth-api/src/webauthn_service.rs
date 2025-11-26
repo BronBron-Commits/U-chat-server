@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::{fmt, write}; // Explicit imports to avoid conflict with local `core` crate
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

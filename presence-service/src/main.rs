@@ -52,7 +52,7 @@ async fn update_presence(
 ) -> Result<&'static str, StatusCode> {
     let mut conn = get_conn(&state).await?;
     let key = format!("presence:{}", body.user);
-    conn.set_ex(key, "online", 30_u32)
+    conn.set_ex(key, "online", 30_u64)
         .await
         .map_err(|err| {
             error!("failed to update presence in redis: {err}");
@@ -67,15 +67,18 @@ async fn get_online(
 ) -> Result<Json<OnlineResponse>, StatusCode> {
     let mut conn = get_conn(&state).await?;
 
-    let keys: Vec<String> = conn
+    let mut iter: redis::AsyncIter<String> = conn
         .scan_match("presence:*")
         .await
         .map_err(|err| {
             error!("failed to scan presence keys: {err}");
             StatusCode::INTERNAL_SERVER_ERROR
-        })?
-        .collect()
-        .await;
+        })?;
+
+    let mut keys: Vec<String> = Vec::new();
+    while let Some(key) = iter.next_item().await {
+        keys.push(key);
+    }
 
     let users = keys
         .into_iter()

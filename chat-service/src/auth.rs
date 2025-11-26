@@ -1,5 +1,9 @@
 //! JWT authentication utilities for chat service
 
+// Work around conflict between local `core` crate and std::core
+extern crate core as std_core;
+extern crate std;
+
 use async_trait::async_trait;
 use axum::{
     extract::FromRequestParts,

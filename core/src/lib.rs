@@ -7,6 +7,7 @@ pub mod models;
 pub mod error;
 pub mod traits;
 pub mod config;
+pub mod audit;
 
 // Re-export commonly used types
 pub use models::*;

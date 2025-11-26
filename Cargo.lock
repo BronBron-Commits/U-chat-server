@@ -689,6 +689,7 @@ dependencies = [
  "matchit 0.8.4",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
@@ -1138,11 +1139,13 @@ dependencies = [
  "chrono",
  "core",
  "dashmap",
+ "e2ee",
  "futures-util",
  "jwt-common",
  "proto",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "tempfile",
  "thiserror 2.0.17",
@@ -2341,6 +2344,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uchat-proto",
+ "uuid",
 ]
 
 [[package]]
